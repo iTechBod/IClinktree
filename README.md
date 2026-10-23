@@ -71,6 +71,7 @@ Make sure you have the following installed on your machine (macOS / Linux / WSL)
 Step 1: Clone the Repository
 
 git clone [https://github.com/iTechBod/IClinktree.git](https://github.com/iTechBod/IClinktree.git)
+
 cd IClinktree
 
 
