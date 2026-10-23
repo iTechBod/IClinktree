@@ -1,6 +1,3 @@
-Here is the professionally crafted, comprehensive, and crystal-clear README.md for your IClinktree repository. It explains every moving piece—from the on-chain AI search assistant and live 7-day analytics to the automated Python setup wizard and mainnet deployment—in a way that anyone from a beginner to an advanced Web3 developer can easily understand.
-
-README.md
 
 # 🌐 IClinktree (Web3 Creator Hub)
 
