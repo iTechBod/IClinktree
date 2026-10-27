@@ -17,33 +17,107 @@ def main():
     
     principal = get_principal()
     print(f"\n🔑 Your DFINITY Principal ID: {principal}")
+
+    if principal.startswith("Unknown"):
+        owner_principal = "7vqix-xhghs-dawsq-cmriw-4uqee-yp2m6-vqt2a-enwxm-w5i2r-yhy7m-lqe"
+    else:
+        owner_principal = principal
+
     print("⚠️  CRITICAL: Before deploying, make sure you add this Principal ID")
     print("    as a Controller to BOTH your Backend and Frontend canisters in the NNS!")
     
     input("\n👉 Press [Enter] once you have verified your canister controllers...")
+
+    print("\n--- 0. IMPORTANT: Asset & Image Instructions ---")
+    print("🖼️  NOTE: Make sure you place your profile photo in the 'assets/images/'")
+    print("    directory and name it strictly 'techbod.png'.")
+    print("    Also, ensure all social and crypto icons (yt.png, oc.jpeg, tg.png, X.png,")
+    print("    ig.png, fb.png, discord.png, github.svg, ts.png, tumblr.png, BS.png,")
+    print("    $icp.svg, btc.svg, eth.svg, sol.svg, xrp.svg, c.JPG, o.PNG, rs.JPG)")
+    print("    exist inside your local 'assets/images/' folder so they render correctly!\n")
+
+    input("👉 Press [Enter] after verifying your images are in 'assets/images/'...")
 
     print("\n--- 1. Creator Profile Configuration ---")
     name = input("Enter your Creator Name (default: TechBod): ").strip() or "TechBod"
     bio = input("Enter your Bio / Subtitle (default: Exploring Technology & Web3 Architecture): ").strip() or "Exploring Technology & Web3 Architecture"
     yt_url = input("Enter your YouTube Channel Videos URL (default: https://www.youtube.com/@techbodam/videos):\n> ").strip() or "https://www.youtube.com/@techbodam/videos"
 
-    print("\n--- 2. Social Media Links ---")
-    socials = {
-        "youtube": yt_url,
-        "openchat": input("OpenChat Community URL:\n> ").strip() or "https://oc.app/community/vvj5y-nqaaa-aaaac-a77uq-cai/?ref=4voc2-7yaaa-aaaaf-bsado-pca",
-        "telegram": input("Telegram Channel URL:\n> ").strip() or "https://t.me/techbod",
-        "x": input("X (Twitter) URL:\n> ").strip() or "https://x.com/techbodam?s=21",
-        "instagram": input("Instagram URL:\n> ").strip() or "https://www.instagram.com/techb0d?igsh=MWl0d3lvNmFpZjJrYw%3D%3D&utm_source=qr",
-        "facebook": input("Facebook URL:\n> ").strip() or "https://www.facebook.com/share/12KCtgU5whP/?mibextid=wwXIfr",
-        "discord": input("Discord Invite URL:\n> ").strip() or "https://discord.com/invite/PyWPGedY",
-        "github": input("GitHub Profile URL:\n> ").strip() or "https://github.com/iTechBod",
-        "tiktok": input("TikTok URL:\n> ").strip() or "https://www.tiktok.com/@techbod?_t=ZT-8tcJI3V27ZO&_r=1",
-        "truthsocial": input("TruthSocial URL:\n> ").strip() or "https://truthsocial.com/@mahbod",
-        "tumblr": input("Tumblr URL:\n> ").strip() or "https://www.tumblr.com/techbodam",
-        "bluesky": input("Bluesky Profile URL:\n> ").strip() or "https://bsky.app/profile/techbod.bsky.social"
+    # Default developer fallbacks
+    default_socials = {
+        "youtube": "https://www.youtube.com/@techbodam/videos",
+        "openchat": "https://oc.app/community/vvj5y-nqaaa-aaaac-a77uq-cai/?ref=4voc2-7yaaa-aaaaf-bsado-pca",
+        "telegram": "https://t.me/techbod",
+        "x": "https://x.com/techbodam?s=21",
+        "instagram": "https://www.instagram.com/techb0d?igsh=MWl0d3lvNmFpZjJrYw%3D%3D&utm_source=qr",
+        "facebook": "https://www.facebook.com/share/12KCtgU5whP/?mibextid=wwXIfr",
+        "discord": "https://discord.com/invite/PyWPGedY",
+        "github": "https://github.com/iTechBod",
+        "tiktok": "https://www.tiktok.com/@techbod?_t=ZT-8tcJI3V27ZO&_r=1",
+        "truthsocial": "https://truthsocial.com/@mahbod",
+        "tumblr": "https://www.tumblr.com/techbodam",
+        "bluesky": "https://bsky.app/profile/techbod.bsky.social"
     }
 
-    print("\n--- 3. Crypto Addresses & Coffee Support Setup ---")
+    print("\n--- 2. Social Media Links ---")
+    print("Enter your links below (leave blank to skip or use fallback):")
+    raw_socials = {
+        "youtube": yt_url,
+        "openchat": input("OpenChat Community URL:\n> ").strip(),
+        "telegram": input("Telegram Channel URL:\n> ").strip(),
+        "x": input("X (Twitter) URL:\n> ").strip(),
+        "instagram": input("Instagram URL:\n> ").strip(),
+        "facebook": input("Facebook URL:\n> ").strip(),
+        "discord": input("Discord Invite URL:\n> ").strip(),
+        "github": input("GitHub Profile URL:\n> ").strip(),
+        "tiktok": input("TikTok URL:\n> ").strip(),
+        "truthsocial": input("TruthSocial URL:\n> ").strip(),
+        "tumblr": input("Tumblr URL:\n> ").strip(),
+        "bluesky": input("Bluesky Profile URL:\n> ").strip()
+    }
+
+    has_blank_socials = any(v == "" for v in raw_socials.values())
+    support_socials = True
+    if has_blank_socials:
+        ans = input("\nDo you give permission to use the original dev's links for any blank/skipped social media? (y/n) [default: y]: ").strip().lower()
+        support_socials = (ans != 'n')
+
+    socials = {}
+    for key, val in raw_socials.items():
+        if val != "":
+            socials[key] = val
+        elif support_socials:
+            socials[key] = default_socials[key]
+
+    print("\n--- 3. ICP Ecosystem dApp Referrals ---")
+    default_dapps = {
+        "openchat": "https://oc.app/?ref=4voc2-7yaaa-aaaaf-bsado-pca",
+        "clown": "https://clown.it.com/?ref=RZDcXG75KtmrD5w6vRjE3A",
+        "oisy": "https://oisy.com/?referrer=943439452",
+        "randseed": "https://randseed.org/?invite=81FO3"
+    }
+
+    raw_dapps = {
+        "openchat": input("OpenChat Referral Link (leave blank to skip): ").strip(),
+        "clown": input("Clown Referral Link (leave blank to skip): ").strip(),
+        "oisy": input("Oisy Referral Link (leave blank to skip): ").strip(),
+        "randseed": input("Randseed Referral Link (leave blank to skip): ").strip()
+    }
+
+    has_blank_dapps = any(v == "" for v in raw_dapps.values())
+    support_dapps = True
+    if has_blank_dapps:
+        ans = input("\nDo you want to support original dev's referral links for any blank dApp fields? (y/n) [default: y]: ").strip().lower()
+        support_dapps = (ans != 'n')
+
+    dapps = {}
+    for key, val in raw_dapps.items():
+        if val != "":
+            dapps[key] = val
+        elif support_dapps:
+            dapps[key] = default_dapps[key]
+
+    print("\n--- 4. Crypto Addresses & Coffee Support Setup ---")
     use_custom_crypto = input("Do you need to add your own crypto addresses for your website? (y/n) [default: n]: ").strip().lower()
 
     default_crypto = {
@@ -51,7 +125,7 @@ def main():
             "id": "icp", "name": "ICP", "icon": "./images/$icp.svg",
             "addresses": [
                 { "id": "icp-wallet", "label": "ICP Wallet / Account ID", "value": "4CvB6Yg68brVXv1JtkhV2jopMe7xDPKiEQm3WjutQn9j" },
-                { "id": "icp-principal", "label": "Principal ID", "value": "57fkl-hfo3q-4sije-2dfvt-ikhqe-ti54q-ysccf-555lf-zc4bm-nykce-lae" }
+                { "id": "icp-principal", "label": "Principal ID", "value": owner_principal }
             ]
         },
         "btc": {
@@ -73,9 +147,7 @@ def main():
     }
 
     crypto_config = {}
-
     if use_custom_crypto == 'y':
-        print("\nEnter your addresses below (press [Enter] on any prompt to leave blank / skip):")
         cust_icp_principal = input("  -> ICP Principal ID: ").strip()
         cust_icp_account = input("  -> ICP Account ID / Wallet ID: ").strip()
         cust_btc = input("  -> BTC Address: ").strip()
@@ -83,58 +155,48 @@ def main():
         cust_sol = input("  -> SOL Address: ").strip()
         cust_xrp = input("  -> XRP Address: ").strip()
 
-        support_orig = input("\nDo you want to support the original website creator for any addresses you left blank? (y/n) [default: y]: ").strip().lower() != 'n'
+        support_crypto = input("\nDo you want to support original creator for blank crypto fields? (y/n) [default: y]: ").strip().lower() != 'n'
 
-        # Build ICP config
         icp_addrs = []
         if cust_icp_account:
             icp_addrs.append({ "id": "icp-wallet", "label": "ICP Wallet / Account ID", "value": cust_icp_account })
-        elif support_orig:
+        elif support_crypto:
             icp_addrs.append({ "id": "icp-wallet", "label": "ICP Wallet (Original Creator)", "value": default_crypto["icp"]["addresses"][0]["value"] })
 
         if cust_icp_principal:
             icp_addrs.append({ "id": "icp-principal", "label": "Principal ID", "value": cust_icp_principal })
-        elif support_orig:
+        elif support_crypto:
             icp_addrs.append({ "id": "icp-principal", "label": "Principal ID (Original Creator)", "value": default_crypto["icp"]["addresses"][1]["value"] })
 
         if icp_addrs:
             crypto_config["icp"] = { "id": "icp", "name": "ICP", "icon": "./images/$icp.svg", "addresses": icp_addrs }
 
-        # Build BTC config
         if cust_btc:
             crypto_config["btc"] = { "id": "btc", "name": "BTC", "icon": "./images/btc.svg", "addresses": [{ "id": "btc-addr", "label": "Bitcoin", "value": cust_btc }] }
-        elif support_orig:
-            crypto_config["btc"] = { "id": "btc", "name": "BTC", "icon": "./images/btc.svg", "addresses": [{ "id": "btc-addr", "label": "Bitcoin (Original Creator)", "value": default_crypto["btc"]["addresses"][0]["value"] }] }
+        elif support_crypto:
+            crypto_config["btc"] = default_crypto["btc"]
 
-        # Build ETH config
         if cust_eth:
             crypto_config["eth"] = { "id": "eth", "name": "ETH", "icon": "./images/eth.svg", "addresses": [{ "id": "eth-addr", "label": "Ethereum", "value": cust_eth }] }
-        elif support_orig:
-            crypto_config["eth"] = { "id": "eth", "name": "ETH", "icon": "./images/eth.svg", "addresses": [{ "id": "eth-addr", "label": "Ethereum (Original Creator)", "value": default_crypto["eth"]["addresses"][0]["value"] }] }
+        elif support_crypto:
+            crypto_config["eth"] = default_crypto["eth"]
 
-        # Build SOL config
         if cust_sol:
             crypto_config["sol"] = { "id": "sol", "name": "SOL", "icon": "./images/sol.svg", "addresses": [{ "id": "sol-addr", "label": "Solana", "value": cust_sol }] }
-        elif support_orig:
-            crypto_config["sol"] = { "id": "sol", "name": "SOL", "icon": "./images/sol.svg", "addresses": [{ "id": "sol-addr", "label": "Solana (Original Creator)", "value": default_crypto["sol"]["addresses"][0]["value"] }] }
+        elif support_crypto:
+            crypto_config["sol"] = default_crypto["sol"]
 
-        # Build XRP config
         if cust_xrp:
             crypto_config["xrp"] = { "id": "xrp", "name": "XRP", "icon": "./images/xrp.svg", "addresses": [{ "id": "xrp-addr", "label": "XRP", "value": cust_xrp }] }
-        elif support_orig:
-            crypto_config["xrp"] = { "id": "xrp", "name": "XRP", "icon": "./images/xrp.svg", "addresses": [{ "id": "xrp-addr", "label": "XRP (Original Creator)", "value": default_crypto["xrp"]["addresses"][0]["value"] }] }
+        elif support_crypto:
+            crypto_config["xrp"] = default_crypto["xrp"]
     else:
-        # Use original creator addresses and label them accordingly
         crypto_config = default_crypto
-        for coin in crypto_config:
-            for addr in crypto_config[coin]["addresses"]:
-                addr["label"] += " (Original Website Creator)"
 
-    print("\n--- 4. Canister IDs ---")
+    print("\n--- 5. Canister IDs ---")
     backend_id = input("Enter Backend Canister ID (default: v7c4r-xqaaa-aaaam-ad2ga-cai):\n> ").strip() or "v7c4r-xqaaa-aaaam-ad2ga-cai"
     frontend_id = input("Enter Frontend Canister ID (default: 2n2uw-uaaaa-aaaag-at2hq-cai):\n> ").strip() or "2n2uw-uaaaa-aaaag-at2hq-cai"
 
-    # Create directories including assets/images
     os.makedirs("backend", exist_ok=True)
     os.makedirs("assets/images", exist_ok=True)
 
@@ -142,22 +204,12 @@ def main():
     print("\n📁 Generating dfx.json...")
     dfx_config = {
       "canisters": {
-        "website": {
-          "type": "assets",
-          "source": ["assets"]
-        },
-        "backend": {
-          "type": "motoko",
-          "main": "backend/main.mo"
-        }
+        "website": { "type": "assets", "source": ["assets"] },
+        "backend": { "type": "motoko", "main": "backend/main.mo" }
       },
       "networks": {
-        "local": {
-          "bind": "127.0.0.1:4943"
-        },
-        "ic": {
-          "providers": ["https://ic0.app"]
-        }
+        "local": { "bind": "127.0.0.1:4943" },
+        "ic": { "providers": ["https://ic0.app"] }
       },
       "version": 1
     }
@@ -181,10 +233,16 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Buffer "mo:base/Buffer";
 import Timer "mo:base/Timer";
-import Blob "mo:base/Blob";
+import _Blob "mo:base/Blob";
 import Time "mo:base/Time";
+import Principal "mo:base/Principal";
 
 actor {
+    let OWNER : Principal = Principal.fromText("__OWNER_PRINCIPAL__");
+
+    let SEVEN_DAYS_NS : Time.Time = 604_800_000_000_000;
+    let MAX_VISIT_LOGS : Nat = 50_000;
+
     public type VideoRecord = {
         title : Text;
         url : Text;
@@ -208,24 +266,28 @@ actor {
         eventAction : ?Text;
     };
 
+    public type CountedItem = {
+        name : Text;
+        count : Nat;
+    };
+
     public type TrafficStats = {
-        totalVisits : Nat;
-        uniqueVisitors : Nat;
+        pageViews : Nat;
+        totalEvents : Nat;
+        uniqueDevices : Nat;
         buttonClicks : Nat;
-        countries : [Text];
-        devices : [Text];
-        browsers : [Text];
+        topCountries : [CountedItem];
+        topDevices : [CountedItem];
+        topBrowsers : [CountedItem];
+        topLinks : [CountedItem];
     };
 
     stable var videoLibrary : [VideoRecord] = [];
     stable var visitLogs : [DetailedVisitRecord] = [];
 
-    let SEVEN_DAYS_NS : Time.Time = 604_800_000_000_000;
-
     func pruneOldVisits() {
         let now = Time.now();
         var validLogs = Buffer.Buffer<DetailedVisitRecord>(visitLogs.size());
-        
         for (log in Iter.fromArray(visitLogs)) {
             if (now >= log.timestamp and (now - log.timestamp) <= SEVEN_DAYS_NS) {
                 validLogs.add(log);
@@ -234,7 +296,7 @@ actor {
         visitLogs := Buffer.toArray(validLogs);
     };
 
-    public shared func logVisit(
+    public shared (_msg) func logVisit(
         deviceId : Text,
         consent : Text,
         country : Text,
@@ -242,6 +304,20 @@ actor {
         browser : Text,
         eventAction : ?Text
     ) : async () {
+        if (Text.size(deviceId) > 64) return;
+        if (Text.size(country) > 64) return;
+        if (Text.size(device) > 128) return;
+        if (Text.size(browser) > 128) return;
+        switch (eventAction) {
+            case (?act) { if (Text.size(act) > 128) return; };
+            case null {};
+        };
+
+        if (visitLogs.size() >= MAX_VISIT_LOGS) {
+            pruneOldVisits();
+            if (visitLogs.size() >= MAX_VISIT_LOGS) return;
+        };
+
         pruneOldVisits();
         let newRecord : DetailedVisitRecord = {
             timestamp = Time.now();
@@ -255,50 +331,109 @@ actor {
         visitLogs := Array.append(visitLogs, [newRecord]);
     };
 
+    func tallyValues(values : [Text], topN : Nat) : [CountedItem] {
+        var uniqueNames : [Text] = [];
+        var uniqueCounts : [Nat] = [];
+
+        for (v in values.vals()) {
+            var found = false;
+            var k = 0;
+            while (k < uniqueNames.size()) {
+                if (uniqueNames[k] == v) { found := true; };
+                k += 1;
+            };
+            if (found) {
+                uniqueCounts := Array.tabulate<Nat>(uniqueCounts.size(), func(i : Nat) : Nat {
+                    if (uniqueNames[i] == v) { uniqueCounts[i] + 1 } else { uniqueCounts[i] }
+                });
+            } else {
+                uniqueNames := Array.append(uniqueNames, [v]);
+                uniqueCounts := Array.append(uniqueCounts, [1]);
+            };
+        };
+
+        var remaining = Array.tabulate<Nat>(uniqueNames.size(), func(i : Nat) : Nat { i });
+        let result = Buffer.Buffer<CountedItem>(topN);
+        var taken : Nat = 0;
+
+        while (taken < topN and taken < remaining.size()) {
+            var bestPos : Nat = 0;
+            var bestCount : Nat = 0;
+            var p = 0;
+            while (p < remaining.size()) {
+                let idx = remaining[p];
+                if (p == 0 or uniqueCounts[idx] > bestCount) {
+                    bestCount := uniqueCounts[idx];
+                    bestPos := p;
+                };
+                p += 1;
+            };
+            let bestIdx = remaining[bestPos];
+            result.add({ name = uniqueNames[bestIdx]; count = uniqueCounts[bestIdx] });
+
+            let newRem = Array.tabulate<Nat>(remaining.size() - 1, func(i : Nat) : Nat {
+                if (i < bestPos) { remaining[i] } else { remaining[i + 1] }
+            });
+            remaining := newRem;
+            taken += 1;
+        };
+
+        Buffer.toArray(result)
+    };
+
     public shared query func getTrafficStats() : async TrafficStats {
-        pruneOldVisits();
         let now = Time.now();
-        var activeLogs = Buffer.Buffer<DetailedVisitRecord>(20);
-        var uniqueDevices = Buffer.Buffer<Text>(20);
-        var countriesBuf = Buffer.Buffer<Text>(20);
-        var devicesBuf = Buffer.Buffer<Text>(20);
-        var browsersBuf = Buffer.Buffer<Text>(20);
+        var pageViews : Nat = 0;
+        var totalEvents : Nat = 0;
         var clickCount : Nat = 0;
+
+        let uniqueDevices = Buffer.Buffer<Text>(20);
+        let countriesBuf = Buffer.Buffer<Text>(20);
+        let devicesBuf   = Buffer.Buffer<Text>(20);
+        let browsersBuf  = Buffer.Buffer<Text>(20);
+        let linksBuf     = Buffer.Buffer<Text>(20);
 
         for (log in Iter.fromArray(visitLogs)) {
             if (now >= log.timestamp and (now - log.timestamp) <= SEVEN_DAYS_NS) {
-                activeLogs.add(log);
+                totalEvents += 1;
 
                 var exists = false;
                 for (dev in Iter.fromArray(Buffer.toArray(uniqueDevices))) {
                     if (dev == log.deviceId) { exists := true; };
                 };
-                if (not exists) {
-                    uniqueDevices.add(log.deviceId);
-                };
-
-                countriesBuf.add(log.country);
-                devicesBuf.add(log.device);
-                browsersBuf.add(log.browser);
+                if (not exists) { uniqueDevices.add(log.deviceId); };
 
                 switch (log.eventAction) {
+                    case null {
+                        pageViews += 1;
+                        countriesBuf.add(log.country);
+                        devicesBuf.add(log.device);
+                        browsersBuf.add(log.browser);
+                    };
                     case (?act) {
-                        if (Text.startsWith(act, #text("click:"))) {
+                        if (act == "pageview") {
+                            pageViews += 1;
+                            countriesBuf.add(log.country);
+                            devicesBuf.add(log.device);
+                            browsersBuf.add(log.browser);
+                        } else if (Text.startsWith(act, #text("click:"))) {
                             clickCount += 1;
+                            linksBuf.add(act);
                         };
                     };
-                    case null {};
                 };
-            }
+            };
         };
 
         {
-            totalVisits = activeLogs.size();
-            uniqueVisitors = uniqueDevices.size();
+            pageViews = pageViews;
+            totalEvents = totalEvents;
+            uniqueDevices = uniqueDevices.size();
             buttonClicks = clickCount;
-            countries = Buffer.toArray(countriesBuf);
-            devices = Buffer.toArray(devicesBuf);
-            browsers = Buffer.toArray(browsersBuf);
+            topCountries = tallyValues(Buffer.toArray(countriesBuf), 5);
+            topDevices   = tallyValues(Buffer.toArray(devicesBuf), 5);
+            topBrowsers  = tallyValues(Buffer.toArray(browsersBuf), 5);
+            topLinks     = tallyValues(Buffer.toArray(linksBuf), 5);
         };
     };
 
@@ -330,7 +465,7 @@ actor {
 
         let normalizedQuery = Text.toLowercase(searchQuery);
         let searchTargets = getSearchTargets(normalizedQuery);
-        
+
         var matches = Buffer.Buffer<ResponseItem>(20);
 
         for (video in Iter.fromArray(videoLibrary)) {
@@ -347,8 +482,8 @@ actor {
             };
 
             if (isMatch) {
-                matches.add({ 
-                    title = video.title; 
+                matches.add({
+                    title = video.title;
                     url = video.url;
                     description = video.description;
                 });
@@ -356,7 +491,7 @@ actor {
         };
 
         let results = Buffer.toArray(matches);
-        
+
         if (results.size() == 0) {
             return [{
                 title = "Check out the latest on my channel!";
@@ -372,12 +507,12 @@ actor {
         }
     };
 
-    public shared func seedVideos(newVideos: [VideoRecord]) : async Nat {
+    public shared (_msg) func seedVideos(newVideos: [VideoRecord]) : async Nat {
         videoLibrary := Array.append(videoLibrary, newVideos);
         videoLibrary.size()
     };
 
-    public shared func clearLibrary() : async () {
+    public shared (_msg) func clearLibrary() : async () {
         videoLibrary := [];
     };
 
@@ -390,10 +525,11 @@ actor {
     });
 }
 '''
+    main_mo_code = main_mo_code.replace("__OWNER_PRINCIPAL__", owner_principal)
     with open("backend/main.mo", "w", encoding="utf-8") as f:
         f.write(main_mo_code)
 
-    # 4. Generate assets/styles.css
+    # 4. Generate styles.css
     print("📁 Generating assets/styles.css...")
     styles_css_code = '''
 :root {
@@ -406,12 +542,7 @@ actor {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
   background-color: var(--bg-color);
@@ -426,202 +557,89 @@ body {
 }
 
 .ambient-glow, .ambient-glow-secondary {
-  position: fixed;
-  width: 350px;
-  height: 350px;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 0;
+  position: fixed; width: 350px; height: 350px; border-radius: 50%;
+  filter: blur(80px); opacity: 0.15; pointer-events: none; z-index: 0;
   transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .ambient-glow { top: -100px; left: -100px; background: #00bfff; }
 .ambient-glow-secondary { bottom: -100px; right: -100px; background: #7928ca; }
 
 #content-wrapper {
-  width: 100%;
-  max-width: 600px;
+  width: 100%; max-width: 600px;
   padding: calc(80px + var(--safe-top)) 16px calc(80px + var(--safe-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  z-index: 1;
+  display: flex; flex-direction: column; gap: 24px; z-index: 1;
 }
 
 #icp-badge {
-  position: fixed;
-  top: max(16px, var(--safe-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 30px;
-  text-decoration: none;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: rgba(20, 20, 24, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border);
-  cursor: pointer;
-  touch-action: manipulation;
+  position: fixed; top: max(16px, var(--safe-top)); left: 50%; transform: translateX(-50%);
+  z-index: 100; display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 30px; text-decoration: none; color: var(--text-primary);
+  font-size: 0.85rem; font-weight: 600; background: rgba(20, 20, 24, 0.9);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border); cursor: pointer; touch-action: manipulation;
 }
-
 .icp-svg { width: 16px; height: 16px; }
 
-#intro {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  margin: 0 auto;
-}
-
+#intro { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin: 0 auto; }
 .profile-container {
-  width: 110px;
-  height: 110px;
-  margin: 0 auto 16px auto;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 110px; height: 110px; margin: 0 auto 16px auto; border-radius: 50%;
+  overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.2); background: #111;
+  display: flex; align-items: center; justify-content: center;
 }
-
-#techbod-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 25% center;
-  transform: scale(1.45);
-  display: block;
-  margin: 0 auto;
-}
-
+#techbod-image { width: 100%; height: 100%; object-fit: cover; object-position: 25% center; transform: scale(1.45); display: block; margin: 0 auto; }
 h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; text-align: center; }
 .subtitle { font-size: 0.95rem; color: var(--text-secondary); text-align: center; }
 
 .glass-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 16px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  cursor: pointer;
-  touch-action: manipulation;
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+  padding: 16px; font-size: 1rem; font-weight: 600; color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border);
+  border-radius: 16px; cursor: pointer; touch-action: manipulation;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 .glass-button:active { background: rgba(255, 255, 255, 0.18); }
 
 .filter-pills {
-  display: flex;
-  gap: 6px;
-  background: rgba(20, 20, 24, 0.8);
-  padding: 4px;
-  border-radius: 24px;
-  border: 1px solid var(--glass-border);
-  width: 100%;
+  display: flex; gap: 6px; background: rgba(20, 20, 24, 0.8);
+  padding: 4px; border-radius: 24px; border: 1px solid var(--glass-border); width: 100%;
 }
-
 .filter-btn {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  border-radius: 20px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: all 0.2s ease;
+  flex: 1; padding: 10px; border: none; background: transparent;
+  color: var(--text-secondary); font-size: 0.85rem; font-weight: 500;
+  border-radius: 20px; cursor: pointer; touch-action: manipulation; transition: all 0.2s ease;
 }
+.filter-btn.active { background: rgba(255, 255, 255, 0.15); color: var(--text-primary); font-weight: 600; }
 
-.filter-btn.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.grid-layout {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
+.grid-layout { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
 .glass-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  text-decoration: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  touch-action: manipulation;
+  display: flex; align-items: center; justify-content: space-between; padding: 14px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px;
+  text-decoration: none; color: var(--text-primary); cursor: pointer; touch-action: manipulation;
   transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.2s ease;
 }
-
 .glass-card.filtered-out { display: none !important; }
 .glass-card:active { background: rgba(255, 255, 255, 0.15); }
 
-.card-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
+.card-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .glass-card .icon, .tiktok-icon-wrap {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+  flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;
 }
-
 .tiktok-icon-wrap svg { width: 28px; height: 28px; display: block; }
 .glass-card .text { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.glass-banner {
-  position: fixed;
-  bottom: calc(80px + var(--safe-bottom));
-  left: 16px;
-  right: 16px;
-  max-width: 500px;
-  margin: 0 auto;
-  background: rgba(20, 20, 24, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 14px 18px;
-  z-index: 1500;
-  display: none;
+.badge-tag {
+  font-size: 0.6rem; padding: 3px 6px; border-radius: 8px;
+  background: rgba(0, 191, 255, 0.1); color: #00bfff; font-weight: 700; text-transform: uppercase;
 }
 
+.glass-banner {
+  position: fixed; bottom: calc(80px + var(--safe-bottom)); left: 16px; right: 16px;
+  max-width: 500px; margin: 0 auto; background: rgba(20, 20, 24, 0.95);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border); border-radius: 16px; padding: 14px 18px; z-index: 1500; display: none;
+}
 .banner-content { display: flex; flex-direction: column; gap: 10px; font-size: 0.8rem; color: var(--text-secondary); }
 .banner-actions { display: flex; gap: 10px; }
 .btn-accept, .btn-decline { flex: 1; padding: 8px; border-radius: 8px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
@@ -629,16 +647,9 @@ h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; text-align: center; 
 .btn-decline { background: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
 
 .analytics-card {
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.45); border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px;
 }
-
 .analytics-header { font-weight: 700; font-size: 0.85rem; color: var(--text-primary); border-bottom: 1px solid var(--glass-border); padding-bottom: 6px; }
 .analytics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
 .stat-item { background: rgba(255, 255, 255, 0.04); padding: 8px 4px; border-radius: 10px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; }
@@ -647,34 +658,24 @@ h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; text-align: center; 
 .analytics-breakdown { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: var(--text-secondary); background: rgba(255, 255, 255, 0.02); padding: 8px 10px; border-radius: 8px; }
 
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 2000;
-  display: flex;
-  align-items: flex-end;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000;
+  display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
 }
 .modal-overlay.active { opacity: 1; pointer-events: all; }
-
 .modal-content {
-  width: 100%;
-  background: #141418;
-  border-top: 1px solid var(--glass-border);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  padding: 20px 16px calc(30px + var(--safe-bottom));
-  max-height: 85vh;
-  overflow-y: auto;
+  width: 100%; background: #141418; border-top: 1px solid var(--glass-border);
+  border-top-left-radius: 24px; border-top-right-radius: 24px;
+  padding: 20px 16px calc(30px + var(--safe-bottom)); max-height: 85vh; overflow-y: auto;
 }
-
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.8rem; cursor: pointer; }
+.close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.8rem; cursor: pointer; touch-action: manipulation; }
 
 .crypto-tabs { display: flex; gap: 6px; margin-bottom: 16px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 12px; overflow-x: auto; }
-.tab-btn { flex: 1; min-width: 70px; background: none; border: none; color: var(--text-secondary); padding: 10px 0; font-size: 0.85rem; font-weight: 600; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.tab-btn {
+  flex: 1; min-width: 70px; background: none; border: none; color: var(--text-secondary);
+  padding: 10px 0; font-size: 0.85rem; font-weight: 600; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px; touch-action: manipulation;
+}
 .tab-btn.active { background: rgba(255, 255, 255, 0.15); color: var(--text-primary); }
 .tab-icon { width: 16px; height: 16px; border-radius: 50%; }
 
@@ -684,34 +685,36 @@ h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; text-align: center; 
 .address-details { width: 100%; }
 .address-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; }
 .address-value { font-family: monospace; font-size: 0.8rem; word-break: break-all; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; margin-bottom: 10px; }
-.copy-btn { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.1); color: var(--text-primary); font-weight: 600; cursor: pointer; }
+.copy-btn {
+  width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.1); color: var(--text-primary); font-weight: 600; cursor: pointer; touch-action: manipulation;
+}
 
 #ai-chat-widget { position: fixed; bottom: calc(16px + var(--safe-bottom)); right: 16px; z-index: 1000; }
-#ai-fab { width: 52px; height: 52px; border-radius: 50%; background: #141418; border: 1px solid var(--glass-border); color: var(--text-primary); font-size: 1.2rem; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+#ai-fab {
+  width: 52px; height: 52px; border-radius: 50%; background: #141418;
+  border: 1px solid var(--glass-border); color: var(--text-primary); font-size: 1.2rem;
+  cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.5); touch-action: manipulation;
+}
 
 #ai-chat-panel {
-  position: fixed;
-  bottom: calc(80px + var(--safe-bottom));
-  right: 16px; left: 16px; max-width: 400px; margin: 0 auto;
-  background: #121215; border: 1px solid var(--glass-border); border-radius: 20px;
-  display: flex; flex-direction: column; opacity: 0; pointer-events: none;
+  position: fixed; bottom: calc(80px + var(--safe-bottom)); right: 16px; left: 16px;
+  max-width: 400px; margin: 0 auto; background: #121215; border: 1px solid var(--glass-border);
+  border-radius: 20px; display: flex; flex-direction: column; opacity: 0; pointer-events: none;
   transform: translateY(10px); transition: all 0.2s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
 }
 #ai-chat-panel.open { opacity: 1; pointer-events: all; transform: translateY(0); }
-
 .chat-header { padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); }
 .chat-history { height: 250px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .chat-msg { padding: 10px 12px; border-radius: 12px; font-size: 0.85rem; max-width: 85%; word-break: break-word; }
 .chat-msg.bot { background: rgba(255,255,255,0.08); align-self: flex-start; }
 .chat-msg.user { background: rgba(0,191,255,0.2); align-self: flex-end; }
-
 .chat-input-area { padding: 10px; display: flex; gap: 8px; border-top: 1px solid var(--glass-border); }
 .chat-input-area input { flex: 1; background: none; border: none; color: var(--text-primary); padding: 8px; font-size: 0.9rem; outline: none; }
 .chat-input-area button { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: var(--text-primary); padding: 0 14px; border-radius: 10px; font-weight: 600; cursor: pointer; }
 
 .video-card { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; margin-top: 8px; }
 .video-card h3 { font-size: 0.85rem; margin-bottom: 6px; }
-
 .gradient-btn { display: block; background: #0A84FF; color: #fff; padding: 6px 12px; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; text-align: center; }
 
 .toast-notification {
@@ -724,15 +727,21 @@ h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; text-align: center; 
     with open("assets/styles.css", "w", encoding="utf-8") as f:
         f.write(styles_css_code)
 
-    # 5. Generate assets/script.js (injecting dynamic crypto_config JSON)
+    # 5. Generate assets/script.js
     print("📁 Generating assets/script.js...")
     script_js_template = '''const BACKEND_CANISTER_ID = '__BACKEND_ID__';
+const AGENT_CDN_URL = 'https://esm.sh/@dfinity/agent@0.21.4?bundle';
 
 const CONFIG = {
   crypto: __CRYPTO_CONFIG__
 };
 
+function shouldTrack() {
+  return localStorage.getItem('traffic_consent') === 'accepted';
+}
+
 function getOrCreateDeviceId() {
+  if (!shouldTrack()) return null;
   let id = localStorage.getItem('tb_device_id');
   if (!id) {
     id = 'dev_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
@@ -764,6 +773,7 @@ function parseUserAgent() {
 }
 
 async function getCountryCode() {
+  if (!shouldTrack()) return 'Unknown';
   try {
     const cached = sessionStorage.getItem('tb_country');
     if (cached) return cached;
@@ -812,7 +822,17 @@ window.cryptoModal = {
       const btn = document.createElement('button');
       btn.className = `tab-btn ${coin.id === this.currentTab ? 'active' : ''}`;
       btn.onclick = () => this.switchTab(coin.id);
-      btn.innerHTML = `<img src="${coin.icon}" class="tab-icon" onerror="this.style.display='none'"><span>${coin.name}</span>`;
+      
+      const img = document.createElement('img');
+      img.src = coin.icon;
+      img.className = 'tab-icon';
+      img.onerror = () => { img.style.display = 'none'; };
+      
+      const span = document.createElement('span');
+      span.textContent = coin.name;
+
+      btn.appendChild(img);
+      btn.appendChild(span);
       container.appendChild(btn);
     });
   },
@@ -828,15 +848,38 @@ window.cryptoModal = {
       const card = document.createElement('div');
       const qrId = `qr-${coinId}-${i}`;
       card.className = 'crypto-card';
-      card.innerHTML = `
-        <div class="qr-container"><div id="${qrId}" class="qr-box"></div></div>
-        <div class="address-details">
-          <div class="address-label">${addr.label}</div>
-          <div class="address-value">${addr.value}</div>
-          <button class="copy-btn" onclick="cryptoModal.copy('${addr.value}', '${addr.label}')">Copy Address</button>
-        </div>
-      `;
+      
+      const qrContainer = document.createElement('div');
+      qrContainer.className = 'qr-container';
+      const qrBox = document.createElement('div');
+      qrBox.id = qrId;
+      qrBox.className = 'qr-box';
+      qrContainer.appendChild(qrBox);
+
+      const details = document.createElement('div');
+      details.className = 'address-details';
+
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'address-label';
+      labelDiv.textContent = addr.label;
+
+      const valDiv = document.createElement('div');
+      valDiv.className = 'address-value';
+      valDiv.textContent = addr.value;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy Address';
+      copyBtn.onclick = () => cryptoModal.copy(addr.value, addr.label);
+
+      details.appendChild(labelDiv);
+      details.appendChild(valDiv);
+      details.appendChild(copyBtn);
+
+      card.appendChild(qrContainer);
+      card.appendChild(details);
       body.appendChild(card);
+
       setTimeout(() => {
         const el = document.getElementById(qrId);
         if (el && typeof QRCode !== 'undefined') {
@@ -872,22 +915,27 @@ let backendActor = null;
 async function getBackend() {
   if (backendActor) return backendActor;
   try {
-    const mod = await import('https://esm.sh/@dfinity/agent?bundle');
+    const mod = await import(AGENT_CDN_URL);
     const agent = new mod.HttpAgent({ host: 'https://icp0.io' });
-    backendActor = mod.Actor.createActor(({ IDL }) => IDL.Service({
-      'askBot': IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'url' : IDL.Text, 'title' : IDL.Text, 'description' : IDL.Text }))], ['query']),
-      'logVisit': IDL.Func([
-        IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)
-      ], [], []),
-      'getTrafficStats': IDL.Func([], [IDL.Record({
-        'totalVisits' : IDL.Nat,
-        'uniqueVisitors' : IDL.Nat,
-        'buttonClicks' : IDL.Nat,
-        'countries' : IDL.Vec(IDL.Text),
-        'devices' : IDL.Vec(IDL.Text),
-        'browsers' : IDL.Vec(IDL.Text)
-      })], ['query'])
-    }), { agent, canisterId: BACKEND_CANISTER_ID });
+    backendActor = mod.Actor.createActor(({ IDL }) => {
+      const CountedItem = IDL.Record({ 'name': IDL.Text, 'count': IDL.Nat });
+      return IDL.Service({
+        'askBot': IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'url' : IDL.Text, 'title' : IDL.Text, 'description' : IDL.Text }))], ['query']),
+        'logVisit': IDL.Func([
+          IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)
+        ], [], []),
+        'getTrafficStats': IDL.Func([], [IDL.Record({
+          'pageViews' : IDL.Nat,
+          'totalEvents' : IDL.Nat,
+          'uniqueDevices' : IDL.Nat,
+          'buttonClicks' : IDL.Nat,
+          'topCountries' : IDL.Vec(CountedItem),
+          'topDevices' : IDL.Vec(CountedItem),
+          'topBrowsers' : IDL.Vec(CountedItem),
+          'topLinks' : IDL.Vec(CountedItem)
+        })], ['query'])
+      });
+    }, { agent, canisterId: BACKEND_CANISTER_ID });
     return backendActor;
   } catch (e) {
     console.error("Backend connection error", e);
@@ -896,10 +944,12 @@ async function getBackend() {
 }
 
 async function trackEvent(eventAction = 'pageview') {
+  if (!shouldTrack()) return;
   try {
     const backend = await getBackend();
     if (!backend) return;
     const deviceId = getOrCreateDeviceId();
+    if (!deviceId) return;
     const consent = localStorage.getItem('traffic_consent') || 'ignored';
     const country = await getCountryCode();
     const meta = parseUserAgent();
@@ -916,19 +966,19 @@ async function trackEvent(eventAction = 'pageview') {
     console.error("Traffic logging error", err);
   }
 }
+window.trackEvent = trackEvent;
 
 window.handleConsent = function(choice) {
   const banner = document.getElementById('traffic-consent-banner');
   if (banner) banner.style.display = 'none';
   localStorage.setItem('traffic_consent', choice);
-  trackEvent('consent:' + choice);
+  if (choice === 'accepted') {
+    trackEvent('pageview');
+  } else {
+    localStorage.removeItem('tb_device_id');
+    sessionStorage.removeItem('tb_country');
+  }
 };
-
-function getTopItem(arr) {
-  if (!arr || arr.length === 0) return 'None recorded';
-  const counts = arr.reduce((acc, val) => { acc[val] = (acc[val] || 0) + 1; return acc; }, {});
-  return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-}
 
 window.sendQuery = async function() {
   const input = document.getElementById('chat-input');
@@ -939,14 +989,14 @@ window.sendQuery = async function() {
 
   const userMsg = document.createElement('div');
   userMsg.className = 'chat-msg user';
-  userMsg.innerText = text;
+  userMsg.textContent = text;
   history.appendChild(userMsg);
   input.value = '';
   history.scrollTop = history.scrollHeight;
 
   const botMsg = document.createElement('div');
   botMsg.className = 'chat-msg bot';
-  botMsg.innerText = 'Searching...';
+  botMsg.textContent = 'Searching...';
   history.appendChild(botMsg);
   history.scrollTop = history.scrollHeight;
 
@@ -955,38 +1005,70 @@ window.sendQuery = async function() {
   if (lower.includes("how many people visited") || lower.includes("traffic") || lower.includes("stats") || lower.includes("visitor count")) {
     try {
       const backend = await getBackend();
+      if (!backend) {
+        botMsg.textContent = "Error: Unable to connect to backend.";
+        history.scrollTop = history.scrollHeight;
+        return;
+      }
       const stats = await backend.getTrafficStats();
       
-      const topCountry = getTopItem(stats.countries);
-      const topDevice = getTopItem(stats.devices);
-      const topBrowser = getTopItem(stats.browsers);
+      const topCountry = stats.topCountries[0] ? `${stats.topCountries[0].name} (${stats.topCountries[0].count.toString()})` : 'None';
+      const topDevice = stats.topDevices[0] ? `${stats.topDevices[0].name} (${stats.topDevices[0].count.toString()})` : 'None';
+      const topBrowser = stats.topBrowsers[0] ? `${stats.topBrowsers[0].name} (${stats.topBrowsers[0].count.toString()})` : 'None';
       
-      botMsg.innerHTML = `
-        <div class="analytics-card">
-          <div class="analytics-header">📊 7-Day Live Analytics</div>
-          <div class="analytics-grid">
-            <div class="stat-item">
-              <span class="stat-val">${stats.totalVisits.toString()}</span>
-              <span class="stat-lbl">Pageviews</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-val">${stats.uniqueVisitors.toString()}</span>
-              <span class="stat-lbl">Unique Users</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-val">${stats.buttonClicks.toString()}</span>
-              <span class="stat-lbl">Clicks</span>
-            </div>
-          </div>
-          <div class="analytics-breakdown">
-            <div>🌍 <strong>Top Country:</strong> ${topCountry}</div>
-            <div>💻 <strong>Top Device/OS:</strong> ${topDevice}</div>
-            <div>🌐 <strong>Top Browser:</strong> ${topBrowser}</div>
-          </div>
-        </div>
-      `;
+      const card = document.createElement('div');
+      card.className = 'analytics-card';
+
+      const header = document.createElement('div');
+      header.className = 'analytics-header';
+      header.textContent = '📊 7-Day Live Analytics';
+
+      const grid = document.createElement('div');
+      grid.className = 'analytics-grid';
+
+      const items = [
+        { val: stats.pageViews.toString(), lbl: 'Pageviews' },
+        { val: stats.uniqueDevices.toString(), lbl: 'Unique Devices' },
+        { val: stats.buttonClicks.toString(), lbl: 'Clicks' }
+      ];
+
+      items.forEach(it => {
+        const sItem = document.createElement('div');
+        sItem.className = 'stat-item';
+        const sVal = document.createElement('span');
+        sVal.className = 'stat-val';
+        sVal.textContent = it.val;
+        const sLbl = document.createElement('span');
+        sLbl.className = 'stat-lbl';
+        sLbl.textContent = it.lbl;
+        sItem.appendChild(sVal);
+        sItem.appendChild(sLbl);
+        grid.appendChild(sItem);
+      });
+
+      const breakdown = document.createElement('div');
+      breakdown.className = 'analytics-breakdown';
+      
+      const b1 = document.createElement('div');
+      b1.innerHTML = `🌍 <strong>Top Country:</strong> ${topCountry}`;
+      const b2 = document.createElement('div');
+      b2.innerHTML = `💻 <strong>Top Device/OS:</strong> ${topDevice}`;
+      const b3 = document.createElement('div');
+      b3.innerHTML = `🌐 <strong>Top Browser:</strong> ${topBrowser}`;
+
+      breakdown.appendChild(b1);
+      breakdown.appendChild(b2);
+      breakdown.appendChild(b3);
+
+      card.appendChild(header);
+      card.appendChild(grid);
+      card.appendChild(breakdown);
+
+      botMsg.textContent = '';
+      botMsg.appendChild(card);
     } catch (e) {
-      botMsg.innerText = "Couldn't fetch traffic stats right now.";
+      console.error(e);
+      botMsg.textContent = `Couldn't fetch traffic stats: ${e.message || 'Error'}`;
     }
     history.scrollTop = history.scrollHeight;
     return;
@@ -994,30 +1076,58 @@ window.sendQuery = async function() {
 
   try {
     const backend = await getBackend();
+    if (!backend) {
+      botMsg.textContent = "Error: Backend connection failed.";
+      history.scrollTop = history.scrollHeight;
+      return;
+    }
     trackEvent(`search:${text}`);
     
     const results = await backend.askBot(text);
-    botMsg.innerHTML = '';
+    botMsg.textContent = '';
     if (results && results.length > 0) {
-      botMsg.innerHTML = '<div>Here are the best matching tutorials:</div>';
+      const introDiv = document.createElement('div');
+      introDiv.textContent = 'Here are the best matching tutorials:';
+      botMsg.appendChild(introDiv);
+
       results.forEach(item => {
         const card = document.createElement('div');
         card.className = 'video-card';
-        card.innerHTML = `<h3>${item.title}</h3><p style="font-size:0.75rem; color:rgba(255,255,255,0.6); margin:4px 0 8px;">${item.description || ''}</p><a href="${item.url}" target="_blank" class="gradient-btn" onclick="trackEvent('click:watch_video')">Watch Video ↗</a>`;
+        
+        const h3 = document.createElement('h3');
+        h3.textContent = item.title;
+
+        const p = document.createElement('p');
+        p.style.cssText = 'font-size:0.75rem; color:rgba(255,255,255,0.6); margin:4px 0 8px;';
+        p.textContent = item.description || '';
+
+        const a = document.createElement('a');
+        a.href = item.url;
+        a.target = '_blank';
+        a.className = 'gradient-btn';
+        a.textContent = 'Watch Video ↗';
+        a.addEventListener('click', () => trackEvent('click:watch_video'));
+
+        card.appendChild(h3);
+        card.appendChild(p);
+        card.appendChild(a);
         botMsg.appendChild(card);
       });
     } else {
-      botMsg.innerText = 'No results found.';
+      botMsg.textContent = 'No results found.';
     }
   } catch (err) {
-    botMsg.innerText = 'Error loading results.';
+    botMsg.textContent = `Error loading results: ${err.message || 'Error'}`;
   }
   history.scrollTop = history.scrollHeight;
 };
 
 document.addEventListener('DOMContentLoaded', () => {
   window.cryptoModal.init();
-  trackEvent('pageview');
+
+  if (shouldTrack()) {
+    trackEvent('pageview');
+  }
 
   const consent = localStorage.getItem('traffic_consent');
   if (!consent) {
@@ -1060,15 +1170,87 @@ document.addEventListener('DOMContentLoaded', () => {
     with open("assets/script.js", "w", encoding="utf-8") as f:
         f.write(script_js_code)
 
-    # 6. Generate assets/index.html
+    # 6. Generate assets/index.html dynamically based on socials and dApps configured
     print("📁 Generating assets/index.html...")
-    index_html_template = '''<!DOCTYPE html>
+    has_icp_section = len(dapps) > 0
+
+    filter_pills_html = '<button class="filter-btn active" data-filter="all" onclick="filterLinks(\'all\', this)" role="tab" aria-selected="true">All Links</button>\n'
+    filter_pills_html += '        <button class="filter-btn" data-filter="social" onclick="filterLinks(\'social\', this)" role="tab" aria-selected="false">Socials</button>\n'
+    if has_icp_section:
+        filter_pills_html += '        <button class="filter-btn" data-filter="icp" onclick="filterLinks(\'icp\', this)" role="tab" aria-selected="false">ICP Ecosystem</button>'
+
+    cards_html = []
+
+    # Social Cards
+    social_meta = [
+        ("youtube", "YouTube", "./images/yt.png", False),
+        ("openchat", "OpenChat", "./images/oc.jpeg", False),
+        ("telegram", "Telegram", "./images/tg.png", False),
+        ("x", "X", "./images/X.png", False),
+        ("instagram", "Instagram", "./images/ig.png", False),
+        ("facebook", "Facebook", "./images/fb.png", False),
+        ("discord", "Discord", "./images/discord.png", False),
+        ("github", "GitHub", "./images/github.svg", False),
+        ("tiktok", "TikTok", "", True),
+        ("truthsocial", "TruthSocial", "./images/ts.png", False),
+        ("tumblr", "Tumblr", "./images/tumblr.png", False),
+        ("bluesky", "Bluesky", "./images/BS.png", False)
+    ]
+
+    for key, label, icon_path, is_tiktok in social_meta:
+        if key in socials and socials[key]:
+            url = socials[key]
+            if is_tiktok:
+                cards_html.append(f'''        <a href="{url}" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
+          <div class="card-left">
+            <div class="icon tiktok-icon-wrap">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="12" fill="#000000"/>
+                <path d="M16.6 8.2a4.5 4.5 0 0 1-2.8-1V4h-2.3v10.3a2.3 2.3 0 1 1-2.3-2.3c.3 0 .6 0 .9.1V9.8a4.6 4.6 0 1 0 3.7 4.5V9.4a6.8 6.8 0 0 0 4.2 1.4V8.5a4.5 4.5 0 0 1-1.4-.3z" fill="#25F4EE"/>
+                <path d="M16.1 7.7a4.5 4.5 0 0 1-2.8-1V4h-2.3v10.3a2.3 2.3 0 1 1-2.3-2.3c.3 0 .6 0 .9.1V9.8a4.6 4.6 0 1 0 3.7 4.5V9.4a6.8 6.8 0 0 0 4.2 1.4V8.5a4.5 4.5 0 0 1-1.4-.3z" fill="#FE2C55"/>
+              </svg>
+            </div>
+            <span class="text">{label}</span>
+          </div>
+        </a>''')
+            else:
+                cards_html.append(f'''        <a href="{url}" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
+          <div class="card-left">
+            <img src="{icon_path}" alt="{label}" class="icon" onerror="this.src='./images/techbod.png'">
+            <span class="text">{label}</span>
+          </div>
+        </a>''')
+
+    # dApp Cards
+    dapp_meta = [
+        ("openchat", "OpenChat", "./images/oc.jpeg"),
+        ("clown", "Clown", "./images/c.JPG"),
+        ("oisy", "Oisy", "./images/o.PNG"),
+        ("randseed", "Randseed", "./images/rs.JPG")
+    ]
+
+    if has_icp_section:
+        cards_html.append("        <!-- ICP Ecosystem dApps -->")
+        for key, label, icon_path in dapp_meta:
+            if key in dapps and dapps[key]:
+                url = dapps[key]
+                cards_html.append(f'''        <a href="{url}" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="icp">
+          <div class="card-left">
+            <img src="{icon_path}" alt="{label}" class="icon" onerror="this.src='./images/techbod.png'">
+            <span class="text">{label}</span>
+          </div>
+          <span class="badge-tag">dApp</span>
+        </a>''')
+
+    grid_cards_str = "\n\n".join(cards_html)
+
+    index_html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>__NAME__ | Creator Hub</title>
-  <meta name="description" content="__BIO__">
+  <title>{name} | Creator Hub</title>
+  <meta name="description" content="{bio}">
   <meta name="theme-color" content="#030305">
 
   <link rel="shortcut icon" href="./images/techbod.png?v=4" type="image/png">
@@ -1086,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="ambient-glow-secondary" id="glow-2"></div>
 
   <a href="https://internetcomputer.org/" target="_blank" rel="noopener noreferrer" id="icp-badge" class="glass-pill magnetic-card" aria-label="Built on the Internet Computer Protocol">
-    <img src="./images/$icp.svg" alt="ICP" class="icp-svg">
+    <img src="./images/$icp.svg" alt="ICP" class="icp-svg" onerror="this.style.display='none'">
     <span class="badge-text">Built on the Internet Computer Protocol</span>
   </a>
 
@@ -1094,12 +1276,12 @@ document.addEventListener('DOMContentLoaded', () => {
     <header id="intro" class="reveal">
       <div class="profile-container">
         <div class="profile-crop">
-          <img src="./images/techbod.png" alt="__NAME__ Profile" id="techbod-image" onerror="this.style.display='none'">
+          <img src="./images/techbod.png" alt="{name} Profile" id="techbod-image" onerror="this.style.display='none'">
         </div>
         <div class="profile-ring"></div>
       </div>
-      <h1>__NAME__</h1>
-      <p class="subtitle">__BIO__</p>
+      <h1>{name}</h1>
+      <p class="subtitle">{bio}</p>
     </header>
 
     <section class="reveal action-section">
@@ -1111,108 +1293,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <section class="reveal filter-section">
       <div class="filter-pills" role="tablist" aria-label="Category Filters">
-        <button class="filter-btn active" data-filter="all" onclick="filterLinks('all', this)" role="tab" aria-selected="true">All Links</button>
-        <button class="filter-btn" data-filter="social" onclick="filterLinks('social', this)" role="tab" aria-selected="false">Socials</button>
+        {filter_pills_html}
       </div>
     </section>
 
     <section class="reveal">
       <div id="unified-grid" class="grid-layout">
-        <a href="__YOUTUBE__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/yt.png" alt="YouTube" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">YouTube</span>
-          </div>
-        </a>
-
-        <a href="__OPENCHAT__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/oc.jpeg" alt="OpenChat" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">OpenChat</span>
-          </div>
-        </a>
-
-        <a href="__TELEGRAM__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/tg.png" alt="Telegram" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Telegram</span>
-          </div>
-        </a>
-
-        <a href="__X__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/X.png" alt="X" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">X</span>
-          </div>
-        </a>
-
-        <a href="__INSTAGRAM__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/ig.png" alt="Instagram" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Instagram</span>
-          </div>
-        </a>
-
-        <a href="__FACEBOOK__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/fb.png" alt="Facebook" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Facebook</span>
-          </div>
-        </a>
-
-        <a href="__DISCORD__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/discord.png" alt="Discord" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Discord</span>
-          </div>
-        </a>
-
-        <a href="__GITHUB__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/github.svg" alt="GitHub" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">GitHub</span>
-          </div>
-        </a>
-
-        <a href="__TIKTOK__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <div class="icon tiktok-icon-wrap">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="12" fill="#000000"/>
-                <path d="M16.6 8.2a4.5 4.5 0 0 1-2.8-1V4h-2.3v10.3a2.3 2.3 0 1 1-2.3-2.3c.3 0 .6 0 .9.1V9.8a4.6 4.6 0 1 0 3.7 4.5V9.4a6.8 6.8 0 0 0 4.2 1.4V8.5a4.5 4.5 0 0 1-1.4-.3z" fill="#25F4EE"/>
-                <path d="M16.1 7.7a4.5 4.5 0 0 1-2.8-1V4h-2.3v10.3a2.3 2.3 0 1 1-2.3-2.3c.3 0 .6 0 .9.1V9.8a4.6 4.6 0 1 0 3.7 4.5V9.4a6.8 6.8 0 0 0 4.2 1.4V8.5a4.5 4.5 0 0 1-1.4-.3z" fill="#FE2C55"/>
-              </svg>
-            </div>
-            <span class="text">TikTok</span>
-          </div>
-        </a>
-
-        <a href="__TRUTHSOCIAL__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/ts.png" alt="TruthSocial" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">TruthSocial</span>
-          </div>
-        </a>
-
-        <a href="__TUMBLR__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/tumblr.png" alt="Tumblr" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Tumblr</span>
-          </div>
-        </a>
-
-        <a href="__BLUESKY__" target="_blank" rel="noopener noreferrer" class="glass-card magnetic-card" data-category="social">
-          <div class="card-left">
-            <img src="./images/BS.png" alt="Bluesky" class="icon" onerror="this.src='./images/techbod.png'">
-            <span class="text">Bluesky</span>
-          </div>
-        </a>
+{grid_cards_str}
       </div>
     </section>
   </main>
 
   <footer class="reveal">
-    <p>&copy; 2026 __NAME__. All rights reserved.</p>
+    <p>&copy; 2026 {name}. All rights reserved.</p>
   </footer>
 
   <div id="traffic-consent-banner" class="glass-banner">
@@ -1232,7 +1325,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     <div id="ai-chat-panel" class="glass-panel" aria-hidden="true">
       <div class="chat-header">
-        <h4>__NAME__ Assistant</h4>
+        <h4>{name} Assistant</h4>
         <button class="close-btn" onclick="toggleChat()">&times;</button>
       </div>
       <div id="chat-history" class="chat-history">
@@ -1251,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="modal-content glass-panel">
       <div class="modal-drag-handle"></div>
       <header class="modal-header">
-        <h3>☕ Support __NAME__</h3>
+        <h3>☕ Support {name}</h3>
         <button class="close-btn" onclick="cryptoModal.close()" aria-label="Close modal">&times;</button>
       </header>
 
@@ -1266,14 +1359,12 @@ document.addEventListener('DOMContentLoaded', () => {
 </body>
 </html>
 '''
-    index_html_code = index_html_template.replace("__NAME__", name).replace("__BIO__", bio)
-    for key, val in socials.items():
-        index_html_code = index_html_code.replace(f"__{key.upper()}__", val)
     with open("assets/index.html", "w", encoding="utf-8") as f:
-        f.write(index_html_code)
+        f.write(index_html)
 
     # 7. Generate push.py
     print("📁 Generating push.py...")
+    yt_target = socials.get('youtube', 'https://www.youtube.com/@techbodam/videos')
     push_py_template = '''import json
 import subprocess
 import yt_dlp
@@ -1343,7 +1434,7 @@ for i in range(0, len(video_database), chunk_size):
 
 print("All real videos successfully synced to your canister!")
 '''
-    push_py_code = push_py_template.replace("__YOUTUBE_URL__", socials['youtube'])
+    push_py_code = push_py_template.replace("__YOUTUBE_URL__", yt_target)
     with open("push.py", "w", encoding="utf-8") as f:
         f.write(push_py_code)
 
