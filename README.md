@@ -1,124 +1,79 @@
-🛡️ ICfirewall
-> Zero-Trust On-Chain AI Security Relay & Command Center on the Internet Computer
-> 
-<p align="left">
-<img src="[https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064](https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064)" alt="Internet Computer" />
-<img src="[https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40](https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40)" alt="Motoko" />
-<img src="[https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a](https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a)" alt="Python" />
-</p>
-ICfirewall is a privacy-first, decentralized firewall and command center designed to sit between external client interfaces (web dashboards, iOS Shortcuts, hardware triggers) and local AI inference pipelines.
-Running natively as a smart contract canister on the Internet Computer (ICP), ICfirewall inspects, sanitizes, and controls prompt traffic in real time before passing payloads to local inference engines, ensuring zero-trust boundary enforcement and full threat telemetry.
-📌 Features
- * 3-Stage Real-Time Security Engine
-   Dynamic runtime switching between Off, Medium, and On boundary modes with a multi-layer on-chain threat engine.
- * Advanced On-Chain Threat Engine
-   Full-width character folding, zero-width / invisible character stripping, whitespace normalization, shell-view deobfuscation, leetspeak decoding (deleet), and multi-pattern matching against prompt injection, destructive commands, and privilege escalation attempts.
- * Live Threat Telemetry & Vault
-   Real-time tracking of processed prompts, blocked attacks, queue density, and a circular on-chain threat log.
- * Apple Glass Dark-Mode UI
-   Minimalist, translucent glassmorphism command center built with native CSS/JS and responsive layout.
- * Multi-Client Access (iOS & Web)
-   Execute prompts from native Apple iOS Shortcuts or the integrated web terminal.
- * Local Daemon Bridge (poll_llm.py)
-   Asynchronous Python daemon that safely polls the canister, runs local model inference (Odysseus / Ollama / compatible), and writes results back on-chain.
- * Strong Access Control & Fail-Closed Security
-   Master / Admin / Daemon principal model featuring a secure bootstrap mechanism, fail-closed queue access, anonymous principal rejection, and strict queue capacity limits.
-🗂️ Project Structure
-.
-├── src/
-│   ├── relay_backend/
-│   │   └── main.mo       # Backend Motoko Canister (State, Security Rules, Threat Engine, API)
-│   └── relay_frontend/
-│       ├── index.html    # Apple Glass UI Layout
-│       ├── main.js       # @dfinity/agent, Auth, Polling & Actor Calls
-│       └── styles.css    # Glassmorphism Dark Mode Styling
-├── mac_daemon/
-│   └── poll_llm.py       # Local Python Daemon + Setup Wizard
-├── dfx.json
-├── requirements.txt
-└── README.md
+🌐 IClinktree (Web3 Creator Hub) <img width="170" height="20" alt="image" src="https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064" />
+<img width="114" height="20" alt="image" src="https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40" />
+<img width="82" height="20" alt="image" src="https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a" />
 
-⚙️ Architecture & Execution Flow
-[ iOS Shortcut / Web UI ]
-         │
-         │ (Authenticated call via Internet Identity)
-         ▼
-[ ICP Canister: ICfirewall ]
-  ├── 1. Verify Principal (Master / Admin / Daemon)
-  ├── 2. Apply Boundary Mode + Multi-layer Threat Scan
-  └── 3. Queue validated prompt (or reject)
-         │
-         │ (Daemon polls getPendingPrompt securely)
-         ▼
-[ Local Python Daemon (poll_llm.py) ]
-  ├── 1. Fetch pending prompt
-  ├── 2. Send to local LLM / Odysseus
-  └── 3. Write result back via saveResult
+Platform: ICP
 
-🛠️ Quick Start & Setup
+https://internetcomputer.org
+
+License: MIT
+
+Live Mainnet Canister: https://2n2uw-uaaaa-aaaag-at2hq-cai.icp.net
+
+IClinktree is a lightning-fast, fully decentralized, and self-hosted Creator Hub & AI-Powered Video Knowledge Base running 100% on-chain on the Internet Computer Protocol (ICP).
+
+Say goodbye to centralized link-in-bio services. With IClinktree, you own your data entirely: your analytics are logged privately on-chain, your supporters can tip you in multiple cryptocurrencies via dynamic QR codes, and your visitors can query your entire YouTube video history using an on-chain AI assistant.
+
+✨ Key Features
+
+⚬ ⚡ 100% On-Chain Deployment: Hosted directly on Internet Computer canister smart contracts—no traditional cloud servers (AWS, Vercel, Heroku) required. ⚬ 🤖 On-Chain AI Assistant & Search: Integrated chat widget powered by your Motoko backend that instantly indexes and retrieves relevant YouTube tutorials based on user queries. ⚬ 📊 Privacy-First Live 7-Day Analytics: Tracks rolling visitor stats (pageviews, unique devices, button clicks, top country, device/OS, and browser) on-chain with automatic 7-day data pruning and zero third-party cookies. ⚬ ☕ Multi-Chain Crypto Tipping: Interactive "Buy Me a Coffee" modal featuring dynamic QR codes for ICP, BTC, ETH, SOL, and XRP with customizable wallet addresses and developer support fallbacks. ⚬ 🚀 Automated Setup & Deployment Wizard (setup.py): Interactive Python script that scaffolds your workspace, configures profiles, handles fallback permissions, scrapes YouTube, and deploys to ICP mainnet. ⚬ 🔗 Dynamic ICP Ecosystem & dApp Referrals: Integrated filter tabs and dedicated cards for top ICP dApps (OpenChat, Clown, Oisy, Randseed) with customizable referral support. If unused, the section dynamically hides itself.
+
+🏗️ Project Architecture
+
+IClinktree/ ├── backend/ │ └── main.mo # Motoko smart contract (Search index, AI assistant, & traffic logs) ├── assets/ │ ├── index.html # Apple-inspired glassmorphism frontend (Dynamically rendered) │ ├── styles.css # Clean minimalist dark-mode styling & responsive grid layouts │ ├── script.js # Frontend router, crypto modal, analytics logger, & chat handler │ └── images/ # Social media icons, profile photo, crypto logos, and dApp badges ├── setup.py # Interactive Python configuration & mainnet deployment wizard ├── push.py # Automated YouTube scraper & canister synchronization script ├── dfx.json # DFINITY SDK canister compilation and network configuration └── canister_ids.json # Mainnet/local canister ID registry mapping
+
+💡 How It Works
+
+AI Assistant & Keyword Search Engine (backend/main.mo)
+How does the assistant widget return matching video links?
+
+Indexing: When you run push.py, your YouTube channel's public playlist is scraped using yt-dlp. Every video's title, description, and tags are cleaned, lowercased, and combined into a searchable index string.
+
+Batch Uploading: Video records are chunked and pushed securely onto your Motoko backend canister (backend/main.mo) via Candid interface calls.
+
+Smart Synonym Mapping: The backend features a built-in dictionary (mapping keywords like "apple" to "mac", "macbook", "iphone", "ios", or "crypto" to "bitcoin", "ethereum", "blockchain").
+
+Query Execution: When a visitor types a query into the chat widget (e.g., "How do I build a canister?" or types "traffic" to view live 7-day analytics), the frontend queries askBot or getTrafficStats on your canister to rank matches and render interactive video cards.
+
+Automated Setup Wizard (setup.py)
+
+Instead of manually editing JSON files or writing Candid arguments, setup.py guides you through an interactive terminal wizard:
+
+⚬ 🔑 Principal Detection: Runs dfx identity get-principal to fetch your Principal ID and reminds you to assign controller permissions in the NNS. ⚬ 👤 Profile Personalization: Prompts for your display name, bio, and YouTube channel URL. ⚬ 🌐 Social & Fallback Permissions: Collects your social media URLs (YouTube, OpenChat, Telegram, X, Instagram, TikTok, etc.). If any fields are skipped, it asks for permission to use original developer fallbacks. ⚬ 🔗 dApp Referrals: Collects referral links for top ICP dApps (OpenChat, Clown, Oisy, Randseed). If left blank and fallbacks are declined, the section dynamically omits itself from the frontend. ⚬ 💳 Crypto & Tipping Setup: Configures custom wallet addresses for ICP, BTC, ETH, SOL, and XRP. ⚬ 📦 Scaffolding & Deployment: Auto-generates your directory tree, builds configuration files, executes push.py to seed video metadata, and deploys live via dfx deploy --network ic.
+
+YouTube Synchronization (push.py)
+Maintains your video knowledge base by fetching fresh metadata from your YouTube channel URL, sanitizing special characters to prevent Motoko syntax crashes, and batch-uploading records directly into on-chain canister storage.
+
+🚀 Deployment Guide
+
 Prerequisites
- * dfx (v0.24.3 or higher)
- * Python 3.10+ (pip install requests)
- * Local LLM runner (Odysseus, Ollama, LM Studio, etc.)
- * Internet Identity (for master/admin access)
-1. Deploy the Canister
-git clone https://github.com/iTechBod/ICfirewall.git
-cd ICfirewall
 
-# Local development
-dfx start --background
-dfx deploy
+Make sure your environment (macOS / Linux / WSL) has the following installed:
 
-# Mainnet deployment
-dfx deploy --network ic
+⚬ [suspicious link removed] (v3.x+) ⚬ Python 3 and yt-dlp: pip install yt-dlp
 
-> Critical first steps after deploy:
-> # Claim master ownership immediately (race condition protection)
-> dfx canister call relay_backend claimMasterPID '("YOUR_PRINCIPAL_ID")'
-> 
-> # Authorize your daemon identity securely
-> dfx canister call relay_backend setDaemonPrincipal '("DAEMON_PRINCIPAL_ID")'
-> 
-> 
-2. Configure & Run the Local Daemon
-Create odysseus_config.json in the project root (or let the setup wizard create it automatically):
-{
-  "url": "http://127.0.0.1:7860",
-  "username": "",
-  "password": "",
-  "session_id": "YOUR_SESSION_ID"
-}
+Step 1: Clone the Repository
 
-Start the daemon:
-python3 mac_daemon/poll_llm.py
+git clone https://github.com/iTechBod/IClinktree.git cd IClinktree
 
-The interactive setup wizard will guide you through canister ID and identity configuration.
-🛡️ Security Boundary Modes
-| Mode | Visual Indicator | Filtering Rigor | Best Used For |
-|---|---|---|---|
-| OFF | Cyan | None | Local testing / raw model evaluation |
-| MEDIUM | Emerald | Balanced multi-layer heuristics | Daily use, good security/speed balance |
-| ON | Crimson | Strict + deobfuscation + extra patterns | High-security / untrusted inputs |
-Mode Details
- * OFF
-   No scanning. Everything is queued. Use only in trusted local environments.
- * MEDIUM
-   Full normalization pipeline + pattern matching against injection, destructive commands, and privilege escalation. Suitable for everyday use.
- * ON
-   Everything in Medium plus:
-   * Harder character limits (max 4,000 chars)
-   * Extra strict injection patterns
-   * Full leetspeak (deleet) + shell-view scanning
-   * Additional destructive patterns
-📡 Security Model
- * Master Claim: First non-anonymous principal to call claimMasterPID becomes immutable master. Anonymous principals are strictly rejected.
- * Daemon Authorization: getPendingPrompt and saveResult are fail-closed. Only the authorized daemon principal (or verified Master/Admin) can access them.
- * Queue Protection: Hard limit of 200 pending prompts (MAX_QUEUE_LIMIT).
- * Prompt Size Caps: Absolute maximum 20,000 characters (forced down to 4,000 in ON mode).
- * HTTP Lockdown: Raw HTTP endpoints return 404. All interaction goes through authenticated actor methods.
- * Threat Engine: Multi-stage normalization (full-width folding, zero-width stripping, whitespace collapsing, shell-view) + pattern matching + leetspeak deobfuscation.
-☕ Support & Community
- * Official Creator Hub: https://2n2uw-uaaaa-aaaag-at2hq-cai.icp.net
- * Built with ♥ on the Internet Computer Protocol
-Disclaimer
-This is a personal project and has not been professionally security-audited. Review the authorization model, threat engine, and upgrade path carefully before deploying to mainnet or using with sensitive data.
+Step 2: Run the Setup Wizard
+
+Execute the setup script:
+
+python3 setup.py
+
+Follow the prompts in your terminal:
+
+Verify your DFINITY Principal ID and confirm canister ownership in NNS.
+Enter your custom Creator Name and Bio.
+Provide your social media profile links (or allow developer fallbacks).
+Input your dApp referral links (or choose to omit/support fallbacks).
+Set up your custom crypto wallet addresses for tips.
+Input your Backend and Frontend Canister IDs.
+The script will automatically build all files, sync your YouTube catalog, upload metadata on-chain, and deploy your creator hub live to the Internet Computer mainnet!
+
+📜 License
+
+Distributed under the MIT License. See LICENSE for more information. Feel free to fork, adapt for your creator brand, and build upon it!
+
+Built with passion on the Internet Computer Protocol.
