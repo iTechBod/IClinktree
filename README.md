@@ -11,16 +11,30 @@ IClinktree is a lightning-fast, fully decentralized, and self-hosted Creator Hub
 Say goodbye to centralized link-in-bio services. With IClinktree, you own your data entirely: your analytics are logged privately on-chain, supporters can tip you in multiple cryptocurrencies via dynamic QR codes, visitors can query your entire YouTube video history using an on-chain AI assistant, and fans can send end-to-end encrypted direct messages/tickets straight to your canister inbox.
 
 ✨ Key Features
-```text
+
 ⚬ ⚡ 100% On-Chain Deployment: Hosted directly on Internet Computer canister smart contracts—no traditional cloud servers (AWS, Vercel, Heroku) required.
+
+
 ⚬ 🤖 On-Chain AI Assistant & Search: Integrated chat widget powered by your Motoko backend that instantly indexes and retrieves relevant YouTube tutorials based on user queries.
+
+
 ⚬ 🔒 End-to-End Encrypted Visitor Ticket System: Allows visitors to send anonymous encrypted notes/tickets via the chat interface (e.g., typing ticket Can you cover Oisy wallet?). Messages are encrypted locally in the browser using AES-GCM Web Crypto before submission, ensuring zero-knowledge storage on-chain. Protected by Internet Identity authentication so only the master owner principal can decrypt and read inbox messages.
+
+
 ⚬ ⏳ Customizable Ticket Retention & Auto-Pruning: Set your preferred auto-deletion lifespan for incoming encrypted tickets during setup to optimize canister cycles and storage.
+
+
 ⚬ 📊 Privacy-First Live 7-Day Analytics: Tracks rolling visitor stats (pageviews, unique devices, button clicks, top country, device/OS, and browser) on-chain with automatic 7-day data pruning and zero third-party cookies.
+
+
 ⚬ ☕ Multi-Chain Crypto Tipping: Interactive "Buy Me a Coffee" modal featuring reliable, high-speed generated QR codes for ICP, BTC, ETH, SOL, and XRP with customizable wallet addresses and developer support fallbacks.
+
+
 ⚬ 🚀 Automated Setup & Deployment Wizard (setup.py): Interactive Python script that scaffolds your workspace, configures profiles, maps your Master Principal ID, configures encrypted ticket parameters, scrapes YouTube, and deploys to ICP mainnet.
+
+
 ⚬ 🔗 Dynamic ICP Ecosystem & dApp Referrals: Integrated filter tabs and dedicated cards for top ICP dApps (OpenChat, Clown, Oisy, Randseed) with customizable referral support. If unused, the section dynamically hides itself.
-```
+
 
 🏗️ Project Architecture
 ```text
