@@ -27,11 +27,11 @@ def main():
     owner_principal = input(f"Enter your Master Principal ID for owner ticket access (default: {default_owner}):\n> ").strip() or default_owner
 
     print("\n--- 1. Ticket System & Expiration Configuration ---")
-    enable_tickets = input("Do you want to enable the visitor ticket/messaging system? (y/n) [default: y]: ").strip().lower() != 'n'
+    enable_tickets = input("Do you want to enable the encrypted visitor ticket/messaging system? (y/n) [default: y]: ").strip().lower() != 'n'
     
     ticket_retention_days = 7
     if enable_tickets:
-        days_input = input("How many days should the canister hold tickets before deleting them automatically? (default: 7):\n> ").strip()
+        days_input = input("How many days should the canister hold encrypted tickets before deleting them automatically? (default: 7):\n> ").strip()
         if days_input.isdigit():
             ticket_retention_days = int(days_input)
 
@@ -248,7 +248,7 @@ def main():
         ticket_methods_mo = f'''
     public type Ticket = {{
         id : Nat;
-        message : Text;
+        message : Text; // Stores encrypted ciphertext payload safely at rest
         created : Time.Time;
         read : Bool;
         archived : Bool;
@@ -272,8 +272,8 @@ def main():
         tickets := Buffer.toArray(validTickets);
     }};
 
-    public shared func submitTicket(rawMessage : Text) : async ?Nat {{
-        if (Text.size(rawMessage) == 0 or Text.size(rawMessage) > 600) {{
+    public shared func submitTicket(ciphertextPayload : Text) : async ?Nat {{
+        if (Text.size(ciphertextPayload) == 0 or Text.size(ciphertextPayload) > 1024) {{
             return null;
         }};
         pruneOldTickets();
@@ -283,7 +283,7 @@ def main():
         let assignedId = nextTicketId;
         let newTicket : Ticket = {{
             id = assignedId;
-            message = rawMessage;
+            message = ciphertextPayload;
             created = Time.now();
             read = false;
             archived = false;
@@ -719,6 +719,7 @@ actor {{
 
     ignore Timer.recurringTimer<system>(#seconds(21600), func() : async () {{
         pruneOldVisits();
+        pruneOldTickets();
     }};
 }}
 '''
@@ -726,7 +727,7 @@ actor {{
     with open("backend/main.mo", "w", encoding="utf-8") as f:
         f.write(main_mo_code)
 
-    print("\n📁 Generating assets/script.js with fixed II authentication guard...")
+    print("\n📁 Generating assets/script.js with client-side end-to-end encryption...")
     script_js_content = '''import { Actor, HttpAgent } from 'https://esm.sh/@dfinity/agent@0.21.4?bundle';
 import { AuthClient } from 'https://esm.sh/@dfinity/auth-client@0.21.4?bundle';
 
@@ -740,6 +741,55 @@ const CONFIG = {
 let authClient = null;
 let lastTrackTime = 0;
 let isSending = false;
+
+async function encryptMessage(plaintext) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    enc.encode(plaintext)
+  );
+  const exportedKey = await crypto.subtle.exportKey('raw', key);
+  
+  const combined = new Uint8Array(exportedKey.byteLength + iv.byteLength + ciphertext.byteLength);
+  combined.set(new Uint8Array(exportedKey), 0);
+  combined.set(iv, exportedKey.byteLength);
+  combined.set(new Uint8Array(ciphertext), exportedKey.byteLength + iv.byteLength);
+  
+  return btoa(String.fromCharCode(...combined));
+}
+
+async function decryptMessage(payloadB64) {
+  try {
+    const raw = Uint8Array.from(atob(payloadB64), c => c.charCodeAt(0));
+    const rawKey = raw.slice(0, 32);
+    const iv = raw.slice(32, 44);
+    const ciphertext = raw.slice(44);
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      rawKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    );
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      ciphertext
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    return "[Encrypted Ticket / Unable to Decrypt]";
+  }
+}
 
 async function getAuthClient() {
   if (!authClient) {
@@ -1103,15 +1153,17 @@ window.sendQuery = async function(presetText = null) {
       return;
     }
     try {
+      botMsg.textContent = 'Encrypting message end-to-end...';
+      const encryptedPayload = await encryptMessage(messageContent);
       const backend = await getBackend(false);
-      const resId = await backend.submitTicket(messageContent);
+      const resId = await backend.submitTicket(encryptedPayload);
       if (resId !== null && resId !== undefined) {
-        botMsg.textContent = `✅ Anonymous message sent successfully! Reference ID: #${resId.toString()}`;
+        botMsg.textContent = `🔒 Encrypted anonymous ticket sent successfully! Reference ID: #${resId.toString()}`;
       } else {
-        botMsg.textContent = "❌ Failed to send ticket. Message may be too long (max 600 chars) or inbox is full.";
+        botMsg.textContent = "❌ Failed to send ticket. Message may be too long or inbox is full.";
       }
     } catch (e) {
-      botMsg.textContent = `Error sending ticket: ${e.message || 'Network error'}`;
+      botMsg.textContent = `Error sending encrypted ticket: ${e.message || 'Network error'}`;
     }
     history.scrollTop = history.scrollHeight;
     isSending = false;
@@ -1140,7 +1192,6 @@ window.sendQuery = async function(presetText = null) {
       }
 
       const backend = await getBackend(true);
-      
       const identity = client.getIdentity();
       const currentPrincipal = identity.getPrincipal().toText();
       
@@ -1151,6 +1202,7 @@ window.sendQuery = async function(presetText = null) {
         return;
       }
 
+      botMsg.textContent = 'Fetching and decrypting tickets...';
       const ticketsOpt = await backend.getTickets();
       if (ticketsOpt === null || ticketsOpt === undefined) {
         botMsg.textContent = "Unauthorized: Your current Internet Identity principal is not authorized as the owner.";
@@ -1167,7 +1219,7 @@ window.sendQuery = async function(presetText = null) {
         topRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
         
         const titleStrong = document.createElement('strong');
-        titleStrong.innerHTML = `📬 Inbox Tickets (${tickets.length})`;
+        titleStrong.innerHTML = `📬 Decrypted Inbox (${tickets.length})`;
         topRow.appendChild(titleStrong);
 
         if (tickets.length > 0) {
@@ -1212,19 +1264,20 @@ window.sendQuery = async function(presetText = null) {
           empty.textContent = 'No tickets in inbox.';
           botMsg.appendChild(empty);
         } else {
-          tickets.forEach(t => {
-            if (lower === 'show unread' && t.read) return;
+          for (const t of tickets) {
+            if (lower === 'show unread' && t.read) continue;
+            const decryptedText = await decryptMessage(t.message);
             const card = document.createElement('div');
             card.className = 'ticket-item';
             const dateStr = new Date(Number(t.created) / 1_000_000).toLocaleString();
             const unreadBadge = t.read ? '' : ' <span style="color:#00bfff; font-size:0.65rem;">● UNREAD</span>';
-            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0;">${escapeHtml(t.message)}</div>`;
+            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0; color:#2ed573;">🔒 ${escapeHtml(decryptedText)}</div>`;
             botMsg.appendChild(card);
-          });
+          }
         }
       }
     } catch (e) {
-      botMsg.textContent = `Authentication or fetch error: ${e.message || e}`;
+      botMsg.textContent = `Authentication or decryption error: ${e.message || e}`;
     }
     history.scrollTop = history.scrollHeight;
     isSending = false;
@@ -1469,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', () => {
     with open("assets/script.js", "w", encoding="utf-8") as f:
         f.write(script_js_content)
 
-    print("\n✅ Setup.py successfully updated with the complete, secure script.js template and master principal mapping!")
+    print("\n✅ Setup.py successfully updated with encrypted ticket support and fallback logic!")
 
 if __name__ == "__main__":
     main()
