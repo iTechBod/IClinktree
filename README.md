@@ -67,7 +67,7 @@ Instead of manually editing JSON files or writing Candid arguments, setup.py gui
 ⚬ Profile Personalization: Prompts for your display name, bio, and YouTube channel URL.
 ⚬ Social & Crypto Configuration: Collects social profile links and custom cryptocurrency wallet addresses (ICP, BTC, ETH, SOL, XRP) with developer fallback options.
 ⚬ Scaffolding & Deployment: Auto-generates your directory tree, builds configuration files, executes push.py to seed video metadata, and deploys live via dfx deploy --network ic.
-##
+text```
 🚀 Deployment Guide
 
 Prerequisites
