@@ -726,11 +726,12 @@ actor {{
     with open("backend/main.mo", "w", encoding="utf-8") as f:
         f.write(main_mo_code)
 
-    print("\n📁 Generating assets/script.js with fixed QR rendering...")
+    print("\n📁 Generating assets/script.js with fixed II authentication guard...")
     script_js_content = '''import { Actor, HttpAgent } from 'https://esm.sh/@dfinity/agent@0.21.4?bundle';
 import { AuthClient } from 'https://esm.sh/@dfinity/auth-client@0.21.4?bundle';
 
 const BACKEND_CANISTER_ID = '__BACKEND_ID__';
+const OWNER_PRINCIPAL = '__OWNER_PRINCIPAL__';
 
 const CONFIG = {
   crypto: __CRYPTO_CONFIG__
@@ -1026,29 +1027,7 @@ window.triggerIILogin = async function() {
     const client = await getAuthClient();
     
     if (await client.isAuthenticated()) {
-      const identity = client.getIdentity();
-      const principalText = identity.getPrincipal().toText();
-      
-      botMsg.textContent = '';
-      const authDiv = document.createElement('div');
-      authDiv.style.display = 'flex';
-      authDiv.style.flexDirection = 'column';
-      authDiv.style.gap = '8px';
-      
-      authDiv.innerHTML = `<strong>✅ Already authenticated!</strong><br>Your Internet Identity Principal ID (PID):`;
-      
-      const inputPid = document.createElement('input');
-      inputPid.type = 'text';
-      inputPid.readOnly = true;
-      inputPid.value = principalText;
-      inputPid.style.cssText = 'font-family:monospace; font-size:0.75rem; padding:8px; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:8px; color:#00bfff; width:100%; cursor:pointer;';
-      inputPid.onclick = () => { inputPid.select(); navigator.clipboard.writeText(principalText); showToast('PID Copied to Clipboard!'); };
-      
-      authDiv.appendChild(inputPid);
-      authDiv.appendChild(document.createTextNode('Click the box to copy your PID!'));
-      botMsg.appendChild(authDiv);
-      history.scrollTop = history.scrollHeight;
-      return;
+      await client.logout();
     }
 
     botMsg.textContent = 'Connecting to Internet Identity...';
@@ -1161,6 +1140,17 @@ window.sendQuery = async function(presetText = null) {
       }
 
       const backend = await getBackend(true);
+      
+      const identity = client.getIdentity();
+      const currentPrincipal = identity.getPrincipal().toText();
+      
+      if (currentPrincipal !== OWNER_PRINCIPAL) {
+        botMsg.textContent = `⛔ Unauthorized: Logged-in Principal (${currentPrincipal.substring(0, 8)}...) does not match the owner principal.`;
+        isSending = false;
+        if (sendBtn) sendBtn.disabled = false;
+        return;
+      }
+
       const ticketsOpt = await backend.getTickets();
       if (ticketsOpt === null || ticketsOpt === undefined) {
         botMsg.textContent = "Unauthorized: Your current Internet Identity principal is not authorized as the owner.";
@@ -1194,7 +1184,7 @@ window.sendQuery = async function(presetText = null) {
           };
 
           const deleteAllBtn = document.createElement('button');
-          deleteAllBtn.className = 'ticket-action-btn danger';
+          markAllBtn.className = 'ticket-action-btn danger';
           deleteAllBtn.textContent = '🗑️ Delete All';
           deleteAllBtn.onclick = async () => {
             if (confirm('Are you sure you want to delete all tickets?')) {
@@ -1474,12 +1464,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 '''
-    script_js_content = script_js_content.replace("__BACKEND_ID__", backend_id).replace("__CRYPTO_CONFIG__", json.dumps(crypto_config, indent=2))
+    script_js_content = script_js_content.replace("__BACKEND_ID__", backend_id).replace("__OWNER_PRINCIPAL__", owner_principal).replace("__CRYPTO_CONFIG__", json.dumps(crypto_config, indent=2))
     os.makedirs("assets", exist_ok=True)
     with open("assets/script.js", "w", encoding="utf-8") as f:
         f.write(script_js_content)
 
-    print("\n✅ Setup.py successfully updated with the fixed script.js template and ticket options!")
+    print("\n✅ Setup.py successfully updated with the complete, secure script.js template and master principal mapping!")
 
 if __name__ == "__main__":
     main()
