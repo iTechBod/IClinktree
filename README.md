@@ -81,17 +81,17 @@ Make sure your environment (macOS / Linux / WSL) has the following installed:
 ⚬ Python 3 and yt-dlp: pip install yt-dlp
 
 Step 1: Clone the Repository
-
+```text
 git clone https://github.com/iTechBod/IClinktree.git
 cd IClinktree
-
+```
 
 Step 2: Run the Setup Wizard
 
 Execute the setup script:
-
+```text
 python3 setup.py
-
+```
 
 Follow the prompts in your terminal:
 
