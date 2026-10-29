@@ -1,6 +1,10 @@
-# 🌐 IClinktree (Web3 Creator Hub) <img width="170" height="20" alt="image" src="https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064" />
-<img width="114" height="20" alt="image" src="https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40" />
-<img width="82" height="20" alt="image" src="https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a" />
+Here is the exact fix. Under 3. Project Architecture, the text  code block needs to be closed with its own ``` before moving on to 💡 How It Works.
+
+Here is the fully formatted Markdown:
+
+# 🌐 IClinktree (Web3 Creator Hub) <img width="170" height="20" alt="image" src="[https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064](https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064)" />
+<img width="114" height="20" alt="image" src="[https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40](https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40)" />
+<img width="82" height="20" alt="image" src="[https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a](https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a)" />
 
 **Platform:** ICP ([Internet Computer](https://internetcomputer.org))  
 **License:** MIT  
@@ -27,7 +31,6 @@ Say goodbye to centralized link-in-bio services. With IClinktree, you own your d
 
 ## 🏗️ Project Architecture
 
-```text
 IClinktree/
 ├── backend/
 │   └── main.mo           # Motoko smart contract (Search index, AI assistant, traffic logs, & secured tickets)
@@ -67,19 +70,19 @@ Instead of manually editing JSON files or writing Candid arguments, setup.py gui
 ⚬ Profile Personalization: Prompts for your display name, bio, and YouTube channel URL.
 ⚬ Social & Crypto Configuration: Collects social profile links and custom cryptocurrency wallet addresses (ICP, BTC, ETH, SOL, XRP) with developer fallback options.
 ⚬ Scaffolding & Deployment: Auto-generates your directory tree, builds configuration files, executes push.py to seed video metadata, and deploys live via dfx deploy --network ic.
-text```
+
 🚀 Deployment Guide
 
 Prerequisites
 
 Make sure your environment (macOS / Linux / WSL) has the following installed:
 
-⚬ ICP CLI https://cli.internetcomputer.org/1.6/quickstart/
+⚬ DFX SDK / ICP CLI https://cli.internetcomputer.org/1.6/quickstart/
 ⚬ Python 3 and yt-dlp: pip install yt-dlp
 
 Step 1: Clone the Repository
 
-git clone [https://github.com/iTechBod/IClinktree.git](https://github.com/iTechBod/IClinktree.git)
+git clone https://github.com/iTechBod/IClinktree.git
 cd IClinktree
 
 
