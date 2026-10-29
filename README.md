@@ -67,14 +67,14 @@ Instead of manually editing JSON files or writing Candid arguments, setup.py gui
 ⚬ Profile Personalization: Prompts for your display name, bio, and YouTube channel URL.
 ⚬ Social & Crypto Configuration: Collects social profile links and custom cryptocurrency wallet addresses (ICP, BTC, ETH, SOL, XRP) with developer fallback options.
 ⚬ Scaffolding & Deployment: Auto-generates your directory tree, builds configuration files, executes push.py to seed video metadata, and deploys live via dfx deploy --network ic.
-
+##
 🚀 Deployment Guide
 
 Prerequisites
 
 Make sure your environment (macOS / Linux / WSL) has the following installed:
 
-⚬ [suspicious link removed]
+⚬ ICP CLI https://cli.internetcomputer.org/1.6/quickstart/
 ⚬ Python 3 and yt-dlp: pip install yt-dlp
 
 Step 1: Clone the Repository
