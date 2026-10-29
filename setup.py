@@ -15,16 +15,19 @@ def main():
     print("      WEB3 CREATOR HUB - AUTOMATED SETUP WIZARD")
     print("======================================================== 🚀")
     
-    principal = get_principal()
-    print(f"\n🔑 Your DFINITY Principal ID: {principal}")
+    terminal_pid = get_principal()
+    print(f"\n🔑 Your Terminal DFINITY Principal ID (Publisher/Sync PID): {terminal_pid}")
 
     print("\n--- 0. Internet Identity & Master PID Configuration ---")
     print("ℹ️  To manage and view secure incoming messages/tickets, you need a Master Principal ID.")
     print("    If you already deployed once, you can login with Internet Identity on your live site")
     print("    to copy your Principal ID (PID).")
     
-    default_owner = principal if not principal.startswith("Unknown") else "YOUR-PRINCIPAL-ID-HERE"
+    default_owner = terminal_pid if not terminal_pid.startswith("Unknown") else "YOUR-PRINCIPAL-ID-HERE"
     owner_principal = input(f"Enter your Master Principal ID for owner ticket access (default: {default_owner}):\n> ").strip() or default_owner
+
+    # Publisher PID for push.py script syncing
+    publisher_principal = terminal_pid if not terminal_pid.startswith("Unknown") else owner_principal
 
     print("\n--- 1. Ticket System & Expiration Configuration ---")
     enable_tickets = input("Do you want to enable the encrypted visitor ticket/messaging system? (y/n) [default: y]: ").strip().lower() != 'n'
@@ -46,10 +49,7 @@ def main():
     print("\n--- 2. Asset & Image Instructions ---")
     print("🖼️  NOTE: Make sure you place your profile photo in the 'assets/images/'")
     print("    directory and name it strictly 'techbod.png'.")
-    print("    Also, ensure all social and crypto icons (yt.png, oc.jpeg, tg.png, X.png,")
-    print("    ig.png, fb.png, discord.png, github.svg, ts.png, tumblr.png, BS.png,")
-    print("    $icp.svg, btc.svg, eth.svg, sol.svg, xrp.svg, c.JPG, o.PNG, rs.JPG)")
-    print("    exist inside your local 'assets/images/' folder so they render correctly!\n")
+    print("    Also, ensure all social and crypto icons exist inside your local 'assets/images/' folder!\n")
 
     input("👉 Press [Enter] after verifying your images are in 'assets/images/'...")
 
@@ -240,15 +240,13 @@ def main():
     with open("canister_ids.json", "w", encoding="utf-8") as f:
         json.dump(canister_ids, f, indent=2)
 
-    # 3. Generate backend/main.mo
+    # 3. Generate backend/main.mo with dual OWNER + PUBLISHER sync principals
     print("📁 Generating backend/main.mo...")
     
-    ticket_methods_mo = ""
-    if enable_tickets:
-        ticket_methods_mo = f'''
+    ticket_methods_mo = f'''
     public type Ticket = {{
         id : Nat;
-        message : Text; // Stores encrypted ciphertext payload safely at rest
+        message : Text;
         created : Time.Time;
         read : Bool;
         archived : Bool;
@@ -374,6 +372,7 @@ import Principal "mo:base/Principal";
 
 actor {{
     let OWNER : Principal = Principal.fromText("{owner_principal}");
+    let PUBLISHER : Principal = Principal.fromText("{publisher_principal}");
 
     let SEVEN_DAYS_NS : Time.Time = 604_800_000_000_000;
     let MAX_VISIT_LOGS : Nat = 50_000;
@@ -703,13 +702,15 @@ actor {{
     }};
 
     public shared (msg) func seedVideos(newVideos: [VideoRecord]) : async Nat {{
-        assert Principal.equal(msg.caller, OWNER);
+        let isAuthorized = Principal.equal(msg.caller, OWNER) or Principal.equal(msg.caller, PUBLISHER);
+        assert isAuthorized;
         videoLibrary := Array.append(videoLibrary, newVideos);
         videoLibrary.size()
     }};
 
     public shared (msg) func clearLibrary() : async () {{
-        assert Principal.equal(msg.caller, OWNER);
+        let isAuthorized = Principal.equal(msg.caller, OWNER) or Principal.equal(msg.caller, PUBLISHER);
+        assert isAuthorized;
         videoLibrary := [];
     }};
 
@@ -727,7 +728,7 @@ actor {{
     with open("backend/main.mo", "w", encoding="utf-8") as f:
         f.write(main_mo_code)
 
-    print("\n📁 Generating assets/script.js with client-side end-to-end encryption...")
+    print("\n📁 Generating assets/script.js with client-side E2EE tickets...")
     script_js_content = '''import { Actor, HttpAgent } from 'https://esm.sh/@dfinity/agent@0.21.4?bundle';
 import { AuthClient } from 'https://esm.sh/@dfinity/auth-client@0.21.4?bundle';
 
@@ -1522,7 +1523,7 @@ document.addEventListener('DOMContentLoaded', () => {
     with open("assets/script.js", "w", encoding="utf-8") as f:
         f.write(script_js_content)
 
-    print("\n✅ Setup.py successfully updated with encrypted ticket support and fallback logic!")
+    print("\n✅ Setup.py successfully updated! Terminal PID captured and set as PUBLISHER in backend/main.mo.")
 
 if __name__ == "__main__":
     main()
