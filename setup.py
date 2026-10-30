@@ -1,7 +1,10 @@
-import os
+#!/usr/bin/env python3
 import json
+import os
 import subprocess
 import sys
+import time
+import yt_dlp
 
 def get_principal():
     try:
@@ -9,6 +12,14 @@ def get_principal():
         return result.stdout.strip()
     except Exception:
         return "Unknown (Make sure dfx is installed and initialized)"
+
+def sanitize(text):
+    if not text:
+        return ''
+    t = text.replace('\\', '\\\\')
+    t = t.replace('"', '\\"')
+    t = t.replace('\n', ' ').replace('\r', ' ')
+    return t
 
 def main():
     print("🚀 ========================================================")
@@ -26,7 +37,6 @@ def main():
     default_owner = terminal_pid if not terminal_pid.startswith("Unknown") else "YOUR-PRINCIPAL-ID-HERE"
     owner_principal = input(f"Enter your Master Principal ID for owner ticket access (default: {default_owner}):\n> ").strip() or default_owner
 
-    # Publisher PID for push.py script syncing
     publisher_principal = terminal_pid if not terminal_pid.startswith("Unknown") else owner_principal
 
     print("\n--- 1. Ticket System & Expiration Configuration ---")
@@ -38,7 +48,6 @@ def main():
         if days_input.isdigit():
             ticket_retention_days = int(days_input)
 
-    # Convert retention days to nanoseconds for Motoko backend
     retention_ns = ticket_retention_days * 24 * 60 * 60 * 1_000_000_000
 
     print("\n⚠️  CRITICAL: Before deploying, make sure you add your Principal ID")
@@ -58,7 +67,6 @@ def main():
     bio = input("Enter your Bio / Subtitle (default: Exploring Technology & Web3 Architecture): ").strip() or "Exploring Technology & Web3 Architecture"
     yt_url = input("Enter your YouTube Channel Videos URL (default: https://www.youtube.com/@techbodam/videos):\n> ").strip() or "https://www.youtube.com/@techbodam/videos"
 
-    # Default developer fallbacks
     default_socials = {
         "youtube": "https://www.youtube.com/@techbodam/videos",
         "openchat": "https://oc.app/community/vvj5y-nqaaa-aaaac-a77uq-cai/?ref=4voc2-7yaaa-aaaaf-bsado-pca",
@@ -215,8 +223,34 @@ def main():
     os.makedirs("backend", exist_ok=True)
     os.makedirs("assets/images", exist_ok=True)
 
-    # 1. Generate dfx.json
-    print("\n📁 Generating dfx.json...")
+    print("\n📁 Generating mops.toml...")
+    mops_toml_content = '''[dependencies]
+base = "0.11.0"
+ic-vetkeys = "0.6.0"
+'''
+    with open("mops.toml", "w", encoding="utf-8") as f:
+        f.write(mops_toml_content)
+
+    print("📁 Generating package.json...")
+    package_json_content = {
+        "name": name.lower().replace(" ", "-") + "-creator-hub",
+        "version": "3.0.0",
+        "description": "Decentralized Web3 Creator Hub on ICP",
+        "scripts": {
+            "build": "echo 'No extra build steps needed for static assets'"
+        },
+        "dependencies": {
+            "@dfinity/agent": "^0.21.4",
+            "@dfinity/auth-client": "^0.21.4",
+            "@icp-sdk/vetkeys": "^0.1.0"
+        },
+        "devDependencies": {},
+        "private": True
+    }
+    with open("package.json", "w", encoding="utf-8") as f:
+        json.dump(package_json_content, f, indent=2)
+
+    print("📁 Generating dfx.json...")
     dfx_config = {
       "canisters": {
         "website": { "type": "assets", "source": ["assets"] },
@@ -231,7 +265,6 @@ def main():
     with open("dfx.json", "w", encoding="utf-8") as f:
         json.dump(dfx_config, f, indent=2)
 
-    # 2. Generate canister_ids.json
     print("📁 Generating canister_ids.json...")
     canister_ids = {
       "website": { "ic": frontend_id },
@@ -240,9 +273,7 @@ def main():
     with open("canister_ids.json", "w", encoding="utf-8") as f:
         json.dump(canister_ids, f, indent=2)
 
-    # 3. Generate backend/main.mo with dual OWNER + PUBLISHER sync principals
-    print("📁 Generating backend/main.mo...")
-    
+    print("📁 Generating backend/main.mo (with vetKeys + full ticket system)...")
     ticket_methods_mo = f'''
     public type Ticket = {{
         id : Nat;
@@ -271,13 +302,22 @@ def main():
     }};
 
     public shared func submitTicket(ciphertextPayload : Text) : async ?Nat {{
-        if (Text.size(ciphertextPayload) == 0 or Text.size(ciphertextPayload) > 1024) {{
+        let now = Time.now();
+        if (now - lastSubmitTime < 5_000_000_000) {{
             return null;
         }};
+        lastSubmitTime := now;
+
+        if (Text.size(ciphertextPayload) == 0 or Text.size(ciphertextPayload) > MAX_CIPHER_LEN) {{
+            return null;
+        }};
+        
         pruneOldTickets();
-        if (tickets.size() >= 200) {{
+
+        if (tickets.size() >= MAX_TICKETS) {{
             return null;
         }};
+
         let assignedId = nextTicketId;
         let newTicket : Ticket = {{
             id = assignedId;
@@ -299,10 +339,30 @@ def main():
         return ?tickets;
     }};
 
+    public shared (msg) func getUnreadCount() : async Nat {{
+        if (not Principal.equal(msg.caller, OWNER)) {{
+            return 0;
+        }};
+        pruneOldTickets();
+        var count : Nat = 0;
+        var i = 0;
+        while (i < tickets.size()) {{
+            let t = tickets[i];
+            if (not t.read and not t.archived) {{
+                count += 1;
+            }};
+            i += 1;
+        }};
+        count
+    }};
+
+    public shared query (msg) func getMyPrincipal() : async Text {{
+        Principal.toText(msg.caller)
+    }};
+
     public shared (msg) func clearTickets() : async Bool {{
         if (not Principal.equal(msg.caller, OWNER)) return false;
         tickets := [];
-        nextTicketId := 1;
         true
     }};
 
@@ -342,6 +402,27 @@ def main():
         found
     }};
 
+    public shared (msg) func archiveTicket(id : Nat, archivedStatus : Bool) : async Bool {{
+        if (not Principal.equal(msg.caller, OWNER)) return false;
+        pruneOldTickets();
+        var found = false;
+        var updatedTickets = Buffer.Buffer<Ticket>(tickets.size());
+        var i = 0;
+        while (i < tickets.size()) {{
+            let t = tickets[i];
+            if (t.id == id) {{
+                found := true;
+                let modified : Ticket = {{ id = t.id; message = t.message; created = t.created; read = t.read; archived = archivedStatus }};
+                updatedTickets.add(modified);
+            }} else {{
+                updatedTickets.add(t);
+            }};
+            i += 1;
+        }};
+        tickets := Buffer.toArray(updatedTickets);
+        found
+    }};
+
     public shared (msg) func deleteTicket(id : Nat) : async Bool {{
         if (not Principal.equal(msg.caller, OWNER)) return false;
         pruneOldTickets();
@@ -363,12 +444,13 @@ def main():
 
     main_mo_code = f'''import Text "mo:base/Text";
 import Array "mo:base/Array";
-import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Buffer "mo:base/Buffer";
 import Timer "mo:base/Timer";
 import Time "mo:base/Time";
 import Principal "mo:base/Principal";
+import Error "mo:base/Error";
+import ExperimentalCycles "mo:base/ExperimentalCycles";
 
 actor {{
     let OWNER : Principal = Principal.fromText("{owner_principal}");
@@ -376,12 +458,35 @@ actor {{
 
     let SEVEN_DAYS_NS : Time.Time = 604_800_000_000_000;
     let MAX_VISIT_LOGS : Nat = 50_000;
+    let MAX_TICKETS : Nat = 200;
+    let MAX_CIPHER_LEN : Nat = 2048;
+
+    let KEY_NAME : Text = "key_1";
+    let DOMAIN_SEPARATOR : Text = "techbod_tickets_v1";
+
+    type IC = actor {{
+        vetkd_public_key : ({{
+            canister_id : ?Principal;
+            context : Blob;
+            key_id : {{ curve : {{ #bls12_381_g2; #bls12_381_g1 }}; name : Text }};
+        }}) -> async {{ public_key : Blob }};
+
+        vetkd_derive_key : ({{
+            input : Blob;
+            context : Blob;
+            transport_public_key : Blob;
+            key_id : {{ curve : {{ #bls12_381_g2; #bls12_381_g1 }}; name : Text }};
+        }}) -> async {{ encrypted_key : Blob }};
+    }};
+
+    let ic : IC = actor ("aaaaa-aa");
 
     public type VideoRecord = {{
         title : Text;
         url : Text;
         description : Text;
         searchableText : Text;
+        timestamp : Time.Time;
     }};
 
     public type ResponseItem = {{
@@ -414,10 +519,13 @@ actor {{
         topDevices : [CountedItem];
         topBrowsers : [CountedItem];
         topLinks : [CountedItem];
+        topSearches : [CountedItem];
     }};
 
     stable var videoLibrary : [VideoRecord] = [];
     stable var visitLogs : [DetailedVisitRecord] = [];
+    stable var searchQueriesBuffer : [Text] = [];
+    stable var lastSubmitTime : Time.Time = 0;
 
     func pruneOldVisits() {{
         let now = Time.now();
@@ -433,6 +541,30 @@ actor {{
         visitLogs := Buffer.toArray(validLogs);
     }};
 
+    public shared func getPublicKey() : async Blob {{
+        let result = await ic.vetkd_public_key({{
+            canister_id = null;
+            context = Text.encodeUtf8(DOMAIN_SEPARATOR);
+            key_id = {{ curve = #bls12_381_g2; name = KEY_NAME }};
+        }});
+        result.public_key
+    }};
+
+    public shared ({{ caller }}) func deriveKey(transportPublicKey : Blob) : async Blob {{
+        if (not Principal.equal(caller, OWNER)) {{
+            throw Error.reject("Unauthorized: Only owner can derive keys");
+        }};
+        let input = Principal.toBlob(caller);
+        ExperimentalCycles.add(26_000_000_000);
+        let result = await ic.vetkd_derive_key({{
+            input = input;
+            context = Text.encodeUtf8(DOMAIN_SEPARATOR);
+            transport_public_key = transportPublicKey;
+            key_id = {{ curve = #bls12_381_g2; name = KEY_NAME }};
+        }});
+        result.encrypted_key
+    }};
+
     public shared (_msg) func logVisit(
         deviceId : Text,
         consent : Text,
@@ -446,7 +578,18 @@ actor {{
         if (Text.size(device) > 128) return;
         if (Text.size(browser) > 128) return;
         switch (eventAction) {{
-            case (?act) {{ if (Text.size(act) > 128) return; }};
+            case (?act) {{ 
+                if (Text.size(act) > 128) return;
+                if (Text.startsWith(act, #text("search:"))) {{
+                    let stripped = Text.replace(act, #text("search:"), "");
+                    let term = Text.trim(stripped, #text(" "));
+                    if (Text.size(term) > 2 and Text.size(term) < 60) {{
+                        if (searchQueriesBuffer.size() < 500) {{
+                            searchQueriesBuffer := Array.append(searchQueriesBuffer, [term]);
+                        }};
+                    }};
+                }};
+            }};
             case null {{}};
         }};
 
@@ -557,6 +700,9 @@ actor {{
                     case (?act) {{
                         if (act == "pageview") {{
                             pageViews += 1;
+                            countriesBuf.add(log.country);
+                            devicesBuf.add(log.device);
+                            browsersBuf.add(log.browser);
                         }} else if (Text.startsWith(act, #text("click:"))) {{
                             clickCount += 1;
                             linksBuf.add(act);
@@ -576,6 +722,7 @@ actor {{
             topDevices   = tallyValues(Buffer.toArray(devicesBuf), 5);
             topBrowsers  = tallyValues(Buffer.toArray(browsersBuf), 5);
             topLinks     = tallyValues(Buffer.toArray(linksBuf), 5);
+            topSearches  = tallyValues(searchQueriesBuffer, 5);
         }};
     }};
 
@@ -615,7 +762,7 @@ actor {{
         let normalizedQuery = Text.toLowercase(searchQuery);
         let searchTargets = getSearchTargets(normalizedQuery);
 
-        var scoredMatches = Buffer.Buffer<({{ score : Nat; item : ResponseItem }})>(20);
+        var scoredMatches = Buffer.Buffer<{{ score : Nat; item : ResponseItem }}>(20);
 
         var i = 0;
         while (i < videoLibrary.size()) {{
@@ -652,8 +799,8 @@ actor {{
         }};
 
         var allMatches = Buffer.toArray(scoredMatches);
-        var sortedBuffer = Buffer.Buffer<({{ score : Nat; item : ResponseItem }})>(allMatches.size());
-        var remainingMatches = Buffer.Buffer<({{ score : Nat; item : ResponseItem }})>(allMatches.size());
+        var sortedBuffer = Buffer.Buffer<{{ score : Nat; item : ResponseItem }}>(allMatches.size());
+        var remainingMatches = Buffer.Buffer<{{ score : Nat; item : ResponseItem }}>(allMatches.size());
         var rIdx = 0;
         while (rIdx < allMatches.size()) {{
             remainingMatches.add(allMatches[rIdx]);
@@ -678,7 +825,7 @@ actor {{
                 case (?bi) {{
                     let chosen = currentRem[bi];
                     sortedBuffer.add(chosen);
-                    var newRem = Buffer.Buffer<({{ score : Nat; item : ResponseItem }})>(currentRem.size() - 1);
+                    var newRem = Buffer.Buffer<{{ score : Nat; item : ResponseItem }}>(currentRem.size() - 1);
                     var skipIdx = 0;
                     while (skipIdx < currentRem.size()) {{
                         if (skipIdx != bi) {{
@@ -698,7 +845,7 @@ actor {{
         let limit = if (finalSorted.size() > 6) 6 else finalSorted.size();
         Array.tabulate<ResponseItem>(limit, func(idx : Nat) : ResponseItem {{
             finalSorted[idx].item
-        }});
+        }})
     }};
 
     public shared (msg) func seedVideos(newVideos: [VideoRecord]) : async Nat {{
@@ -724,130 +871,268 @@ actor {{
     }};
 }}
 '''
-
     with open("backend/main.mo", "w", encoding="utf-8") as f:
         f.write(main_mo_code)
 
-    print("\n📁 Generating assets/script.js with client-side E2EE tickets...")
-    script_js_content = '''import { Actor, HttpAgent } from 'https://esm.sh/@dfinity/agent@0.21.4?bundle';
-import { AuthClient } from 'https://esm.sh/@dfinity/auth-client@0.21.4?bundle';
+    print("📁 Generating assets/script.js (dynamic imports + vetKeys + full ticket UI)...")
+    script_js_content = r'''// --- Immediate Global Fallbacks & UI Handlers ---
+window.filterLinks = function(category, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
+  if (btn) {
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+  }
 
-const BACKEND_CANISTER_ID = '__BACKEND_ID__';
-const OWNER_PRINCIPAL = '__OWNER_PRINCIPAL__';
+  document.querySelectorAll('.glass-card').forEach(card => {
+    const cat = card.getAttribute('data-category');
+    if (category === 'all' || cat === category) {
+      card.classList.remove('filtered-out');
+      card.style.display = 'flex';
+    } else {
+      card.classList.add('filtered-out');
+      card.style.display = 'none';
+    }
+  });
+};
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.innerText = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+window.showToast = showToast;
+
+function renderQRCode(elementId, text, size = 120) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    try {
+      new QRCode(el, {
+        text: text,
+        width: size,
+        height: size,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      return;
+    } catch (e) {
+      console.warn("QRCode gen error:", e);
+    }
+  }
+  const img = document.createElement('img');
+  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+  img.width = size;
+  img.height = size;
+  el.appendChild(img);
+}
 
 const CONFIG = {
   crypto: __CRYPTO_CONFIG__
 };
 
+window.cryptoModal = {
+  currentTab: localStorage.getItem('tb_crypto_tab') || Object.keys(CONFIG.crypto)[0] || 'icp',
+  init() { this.renderTabs(); },
+  open() {
+    window.trackEvent?.('click:buy_coffee');
+    const modal = document.getElementById('crypto-modal');
+    if (modal) {
+      modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+    document.body.style.overflow = 'hidden';
+    this.switchTab(this.currentTab);
+  },
+  close() {
+    const modal = document.getElementById('crypto-modal');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.style.overflow = '';
+  },
+  renderTabs() {
+    const container = document.getElementById('crypto-tabs');
+    if (!container) return;
+    container.innerHTML = '';
+    Object.values(CONFIG.crypto).forEach(coin => {
+      const btn = document.createElement('button');
+      btn.className = `tab-btn ${coin.id === this.currentTab ? 'active' : ''}`;
+      btn.onclick = () => window.cryptoModal.switchTab(coin.id);
+      
+      const img = document.createElement('img');
+      img.src = coin.icon;
+      img.className = 'tab-icon';
+      img.onerror = function() { this.style.display = 'none'; };
+      
+      const span = document.createElement('span');
+      span.textContent = coin.name;
+
+      btn.appendChild(img);
+      btn.appendChild(span);
+      container.appendChild(btn);
+    });
+  },
+  switchTab(coinId) {
+    this.currentTab = coinId;
+    localStorage.setItem('tb_crypto_tab', coinId);
+    this.renderTabs();
+    const coinData = CONFIG.crypto[coinId];
+    const body = document.getElementById('crypto-body');
+    if (!body || !coinData) return;
+
+    body.innerHTML = '';
+    coinData.addresses.forEach((addr, i) => {
+      const card = document.createElement('div');
+      const qrId = `qr-${coinId}-${i}`;
+      card.className = 'crypto-card';
+      
+      const qrContainer = document.createElement('div');
+      qrContainer.className = 'qr-container';
+      qrContainer.title = "Click to view full screen QR";
+      qrContainer.onclick = () => window.openFullscreenQR(addr.value, addr.label);
+
+      const qrBox = document.createElement('div');
+      qrBox.id = qrId;
+      qrBox.className = 'qr-box';
+      qrContainer.appendChild(qrBox);
+
+      const details = document.createElement('div');
+      details.className = 'address-details';
+
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'address-label';
+      labelDiv.textContent = addr.label;
+
+      const valDiv = document.createElement('div');
+      valDiv.className = 'address-value';
+      valDiv.textContent = addr.value;
+      valDiv.title = 'Click to copy address';
+      valDiv.onclick = () => window.cryptoModal.copy(addr.value, addr.label);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy Address';
+      copyBtn.onclick = () => window.cryptoModal.copy(addr.value, addr.label);
+
+      details.appendChild(labelDiv);
+      details.appendChild(valDiv);
+      details.appendChild(copyBtn);
+
+      card.appendChild(qrContainer);
+      card.appendChild(details);
+      body.appendChild(card);
+
+      setTimeout(() => {
+        renderQRCode(qrId, addr.value, 120);
+      }, 20);
+    });
+  },
+  async copy(text, label) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      window.trackEvent?.(`copy:${label}`);
+      showToast(`${label} Copied!`);
+    } catch {
+      showToast('Failed to copy. Please select manually.');
+    }
+  }
+};
+
+window.openFullscreenQR = function(address, label) {
+  const modal = document.getElementById('qr-fullscreen-modal');
+  const container = document.getElementById('qr-fullscreen-container');
+  const lbl = document.getElementById('qr-fullscreen-label');
+  if (!modal || !container || !lbl) return;
+
+  container.innerHTML = '';
+  const innerBox = document.createElement('div');
+  innerBox.id = 'qr-fullscreen-box';
+  container.appendChild(innerBox);
+
+  renderQRCode('qr-fullscreen-box', address, 220);
+  lbl.textContent = label;
+  modal.classList.add('active');
+  modal.setAttribute('aria-hidden', 'false');
+};
+
+window.closeFullscreenQR = function() {
+  const modal = document.getElementById('qr-fullscreen-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+};
+
+window.toggleChat = function() {
+  const panel = document.getElementById('ai-chat-panel');
+  if (!panel) return;
+  const isOpen = panel.classList.toggle('open');
+  panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+  if (isOpen) {
+    document.getElementById('chat-input')?.focus();
+    updateUnreadBadge();
+  }
+};
+
+window.handleChatKeyDown = function(e) {
+  if (e.key === 'Enter') window.sendQuery();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.cryptoModal.init();
+
+  const consent = localStorage.getItem('traffic_consent');
+  if (!consent) {
+    const banner = document.getElementById('traffic-consent-banner');
+    if (banner) banner.style.display = 'block';
+  }
+  updateUnreadBadge();
+});
+
+let Actor, HttpAgent, AuthClient, Principal;
+const BACKEND_CANISTER_ID = '__BACKEND_ID__';
+const OWNER_PRINCIPAL = '__OWNER_PRINCIPAL__';
 let authClient = null;
 let lastTrackTime = 0;
 let isSending = false;
+let cachedAgent = null;
+let cachedAgentIdentity = null;
 
-async function encryptMessage(plaintext) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt']
-  );
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    enc.encode(plaintext)
-  );
-  const exportedKey = await crypto.subtle.exportKey('raw', key);
-  
-  const combined = new Uint8Array(exportedKey.byteLength + iv.byteLength + ciphertext.byteLength);
-  combined.set(new Uint8Array(exportedKey), 0);
-  combined.set(iv, exportedKey.byteLength);
-  combined.set(new Uint8Array(ciphertext), exportedKey.byteLength + iv.byteLength);
-  
-  return btoa(String.fromCharCode(...combined));
-}
-
-async function decryptMessage(payloadB64) {
+(async function initWeb3() {
   try {
-    const raw = Uint8Array.from(atob(payloadB64), c => c.charCodeAt(0));
-    const rawKey = raw.slice(0, 32);
-    const iv = raw.slice(32, 44);
-    const ciphertext = raw.slice(44);
+    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4?bundle');
+    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4?bundle');
+    const princMod = await import('https://esm.sh/@dfinity/principal@0.21.4?bundle');
+    
+    Actor = agentMod.Actor;
+    HttpAgent = agentMod.HttpAgent;
+    AuthClient = authMod.AuthClient;
+    Principal = princMod.Principal;
 
-    const key = await crypto.subtle.importKey(
-      'raw',
-      rawKey,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['decrypt']
-    );
-
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      ciphertext
-    );
-    return new TextDecoder().decode(decrypted);
-  } catch (e) {
-    return "[Encrypted Ticket / Unable to Decrypt]";
+    if (shouldTrack()) trackEvent('pageview');
+  } catch (err) {
+    console.warn("Web3 canister connection modules unavailable or offline:", err);
   }
-}
-
-async function getAuthClient() {
-  if (!authClient) {
-    authClient = await AuthClient.create();
-  }
-  return authClient;
-}
-
-async function getBackend(isAuthenticated = false) {
-  try {
-    const agentOptions = { host: 'https://icp0.io' };
-    if (isAuthenticated) {
-      const client = await getAuthClient();
-      if (await client.isAuthenticated()) {
-        agentOptions.identity = client.getIdentity();
-      }
-    }
-    const agent = new HttpAgent(agentOptions);
-    await agent.fetchRootKey().catch(() => {});
-
-    return Actor.createActor(({ IDL }) => {
-      const CountedItem = IDL.Record({ 'name': IDL.Text, 'count': IDL.Nat });
-      const Ticket = IDL.Record({
-        'id': IDL.Nat,
-        'message': IDL.Text,
-        'created': IDL.Int,
-        'read': IDL.Bool,
-        'archived': IDL.Bool
-      });
-      return IDL.Service({
-        'askBot': IDL.Func([IDL.Text], [IDL.Vec(IDL.Record({ 'url' : IDL.Text, 'title' : IDL.Text, 'description' : IDL.Text }))], ['query']),
-        'logVisit': IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-        'getTrafficStats': IDL.Func([], [IDL.Record({
-          'pageViews' : IDL.Nat,
-          'totalEvents' : IDL.Nat,
-          'uniqueDevices' : IDL.Nat,
-          'buttonClicks' : IDL.Nat,
-          'topCountries' : IDL.Vec(CountedItem),
-          'topDevices' : IDL.Vec(CountedItem),
-          'topBrowsers' : IDL.Vec(CountedItem),
-          'topLinks' : IDL.Vec(CountedItem)
-        })], ['query']),
-        'submitTicket': IDL.Func([IDL.Text], [IDL.Opt(IDL.Nat)], []),
-        'getTickets': IDL.Func([], [IDL.Opt(IDL.Vec(Ticket))], []),
-        'clearTickets': IDL.Func([], [IDL.Bool], []),
-        'markAllRead': IDL.Func([], [IDL.Bool], []),
-        'getMyPrincipal': IDL.Func([], [IDL.Text], ['query']),
-        'markTicketRead': IDL.Func([IDL.Nat, IDL.Bool], [IDL.Bool], []),
-        'archiveTicket': IDL.Func([IDL.Nat, IDL.Bool], [IDL.Bool], []),
-        'deleteTicket': IDL.Func([IDL.Nat], [IDL.Bool], [])
-      });
-    }, { agent, canisterId: BACKEND_CANISTER_ID });
-  } catch (e) {
-    console.error("Backend connection error", e);
-    return null;
-  }
-}
+})();
 
 function shouldTrack() {
   return localStorage.getItem('traffic_consent') === 'accepted';
@@ -903,167 +1188,201 @@ async function getCountryCode() {
   }
 }
 
-window.filterLinks = function(category, btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    b.classList.remove('active');
-    b.setAttribute('aria-selected', 'false');
-  });
-  if (btn) {
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
+async function getAuthClient() {
+  if (!AuthClient) {
+    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4?bundle').catch(() => null);
+    if (authMod) AuthClient = authMod.AuthClient;
   }
-
-  document.querySelectorAll('.glass-card').forEach(card => {
-    const cat = card.getAttribute('data-category');
-    if (category === 'all' || cat === category) {
-      card.classList.remove('filtered-out');
-    } else {
-      card.classList.add('filtered-out');
-    }
-  });
-};
-
-window.cryptoModal = {
-  currentTab: localStorage.getItem('tb_crypto_tab') || Object.keys(CONFIG.crypto)[0] || 'icp',
-  init() { this.renderTabs(); },
-  open() {
-    trackEvent('click:buy_coffee');
-    const modal = document.getElementById('crypto-modal');
-    modal?.classList.add('active');
-    modal?.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-    this.switchTab(this.currentTab);
-  },
-  close() {
-    const modal = document.getElementById('crypto-modal');
-    modal?.classList.remove('active');
-    modal?.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  },
-  renderTabs() {
-    const container = document.getElementById('crypto-tabs');
-    if (!container) return;
-    container.innerHTML = '';
-    Object.values(CONFIG.crypto).forEach(coin => {
-      const btn = document.createElement('button');
-      btn.className = `tab-btn ${coin.id === this.currentTab ? 'active' : ''}`;
-      btn.onclick = () => this.switchTab(coin.id);
-      
-      const img = document.createElement('img');
-      img.src = coin.icon;
-      img.className = 'tab-icon';
-      img.onerror = function() { this.style.display = 'none'; };
-      
-      const span = document.createElement('span');
-      span.textContent = coin.name;
-
-      btn.appendChild(img);
-      btn.appendChild(span);
-      container.appendChild(btn);
-    });
-  },
-  switchTab(coinId) {
-    this.currentTab = coinId;
-    localStorage.setItem('tb_crypto_tab', coinId);
-    this.renderTabs();
-    const coinData = CONFIG.crypto[coinId];
-    const body = document.getElementById('crypto-body');
-    if (!body || !coinData) return;
-
-    body.innerHTML = '';
-    coinData.addresses.forEach((addr, i) => {
-      const card = document.createElement('div');
-      const qrId = `qr-${coinId}-${i}`;
-      card.className = 'crypto-card';
-      
-      const qrContainer = document.createElement('div');
-      qrContainer.className = 'qr-container';
-      const qrBox = document.createElement('div');
-      qrBox.id = qrId;
-      qrBox.className = 'qr-box';
-      qrContainer.appendChild(qrBox);
-
-      const details = document.createElement('div');
-      details.className = 'address-details';
-
-      const labelDiv = document.createElement('div');
-      labelDiv.className = 'address-label';
-      labelDiv.textContent = addr.label;
-
-      const valDiv = document.createElement('div');
-      valDiv.className = 'address-value';
-      valDiv.textContent = addr.value;
-      valDiv.title = 'Click to copy address';
-      valDiv.onclick = () => cryptoModal.copy(addr.value, addr.label);
-
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'copy-btn';
-      copyBtn.textContent = 'Copy Address';
-      copyBtn.onclick = () => cryptoModal.copy(addr.value, addr.label);
-
-      details.appendChild(labelDiv);
-      details.appendChild(valDiv);
-      details.appendChild(copyBtn);
-
-      card.appendChild(qrContainer);
-      card.appendChild(details);
-      body.appendChild(card);
-
-      setTimeout(() => {
-        const el = document.getElementById(qrId);
-        if (el) {
-          el.innerHTML = '';
-          const img = document.createElement('img');
-          img.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(addr.value)}`;
-          img.width = 120;
-          img.height = 120;
-          img.style.display = 'block';
-          img.style.borderRadius = '4px';
-          el.appendChild(img);
-        }
-      }, 20);
-    });
-  },
-  async copy(text, label) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
+  if (!AuthClient) return null;
+  if (!authClient) {
+    authClient = await AuthClient.create({
+      idleOptions: {
+        disableIdle: true,
+        disableDefaultIdleCallback: true
       }
-      trackEvent(`copy:${label}`);
-      showToast(`${label} Copied!`);
-    } catch {
-      showToast('Failed to copy. Please select manually.');
-    }
+    });
   }
-};
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  if (!t) return;
-  t.innerText = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
+  return authClient;
 }
 
-window.toggleChat = () => {
-  const panel = document.getElementById('ai-chat-panel');
-  const isOpen = panel?.classList.toggle('open');
-  panel?.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
-  if (isOpen) {
-    document.getElementById('chat-input')?.focus();
+async function getBackend(isAuthenticated = false) {
+  if (!Actor || !HttpAgent) {
+    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4?bundle').catch(() => null);
+    if (agentMod) {
+      Actor = agentMod.Actor;
+      HttpAgent = agentMod.HttpAgent;
+    }
+  }
+  if (!Actor || !HttpAgent) return null;
+
+  try {
+    const client = isAuthenticated ? await getAuthClient() : null;
+    const identity = client && await client.isAuthenticated() ? client.getIdentity() : null;
+    const identityKey = identity ? identity.getPrincipal().toText() : 'anon';
+
+    if (cachedAgent && cachedAgentIdentity === identityKey) {
+      return cachedAgent;
+    }
+
+    const host = window.location.origin.includes('localhost') ? 'http://127.0.0.1:4943' : 'https://icp0.io';
+    const agentOptions = { host };
+    if (identity) {
+      agentOptions.identity = identity;
+    }
+    
+    const agent = new HttpAgent(agentOptions);
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      await agent.fetchRootKey().catch(() => {});
+    }
+
+    cachedAgent = Actor.createActor(({ IDL }) => {
+      const CountedItem = IDL.Record({ 'name': IDL.Text, 'count': IDL.Nat });
+      const Ticket = IDL.Record({
+        'id': IDL.Nat,
+        'message': IDL.Text,
+        'created': IDL.Int,
+        'read': IDL.Bool,
+        'archived': IDL.Bool
+      });
+      const ResponseItem = IDL.Record({
+        'title': IDL.Text,
+        'url': IDL.Text,
+        'description': IDL.Text
+      });
+      return IDL.Service({
+        'askBot': IDL.Func([IDL.Text], [IDL.Vec(ResponseItem)], ['query']),
+        'getLatestVideos': IDL.Func([], [IDL.Vec(ResponseItem)], ['query']),
+        'logVisit': IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
+        'getTrafficStats': IDL.Func([], [IDL.Record({
+          'pageViews' : IDL.Nat,
+          'totalEvents' : IDL.Nat,
+          'uniqueDevices' : IDL.Nat,
+          'buttonClicks' : IDL.Nat,
+          'topCountries' : IDL.Vec(CountedItem),
+          'topDevices' : IDL.Vec(CountedItem),
+          'topBrowsers' : IDL.Vec(CountedItem),
+          'topLinks' : IDL.Vec(CountedItem),
+          'topSearches' : IDL.Vec(CountedItem)
+        })], ['query']),
+        'submitTicket': IDL.Func([IDL.Text], [IDL.Opt(IDL.Nat)], []),
+        'getTickets': IDL.Func([], [IDL.Opt(IDL.Vec(Ticket))], []),
+        'getUnreadCount': IDL.Func([], [IDL.Nat], []),
+        'clearTickets': IDL.Func([], [IDL.Bool], []),
+        'markAllRead': IDL.Func([], [IDL.Bool], []),
+        'getMyPrincipal': IDL.Func([], [IDL.Text], ['query']),
+        'markTicketRead': IDL.Func([IDL.Nat, IDL.Bool], [IDL.Bool], []),
+        'archiveTicket': IDL.Func([IDL.Nat, IDL.Bool], [IDL.Bool], []),
+        'deleteTicket': IDL.Func([IDL.Nat], [IDL.Bool], []),
+        'getPublicKey': IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
+        'deriveKey': IDL.Func([IDL.Vec(IDL.Nat8)], [IDL.Vec(IDL.Nat8)], [])
+      });
+    }, { agent, canisterId: BACKEND_CANISTER_ID });
+
+    cachedAgentIdentity = identityKey;
+    return cachedAgent;
+  } catch (e) {
+    console.error("Backend connection error", e);
+    return null;
+  }
+}
+
+async function encryptMessage(plaintext, ownerPrincipalText) {
+  try {
+    const vetkeysMod = await import('https://esm.sh/@icp-sdk/vetkeys@0.5.0?bundle').catch(() => null);
+    if (!vetkeysMod) return btoa(unescape(encodeURIComponent(plaintext)));
+    const { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } = vetkeysMod;
+    const princMod = await import('https://esm.sh/@dfinity/principal@0.21.4?bundle').catch(() => null);
+    if (princMod) Principal = princMod.Principal;
+
+    const backend = await getBackend(false);
+    if (!backend) return btoa(unescape(encodeURIComponent(plaintext)));
+    const publicKeyBytes = await backend.getPublicKey();
+    const publicKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
+    
+    const ownerPrincipal = Principal.fromText(ownerPrincipalText);
+    const identity = IbeIdentity.fromBytes(ownerPrincipal.toUint8Array());
+    const seed = IbeSeed.fromBytes(crypto.getRandomValues(new Uint8Array(32)));
+    
+    const ciphertext = IbeCiphertext.encrypt(
+      publicKey, 
+      identity, 
+      seed, 
+      new TextEncoder().encode(plaintext)
+    );
+    return btoa(String.fromCharCode(...ciphertext.serialize()));
+  } catch (e) {
+    return btoa(unescape(encodeURIComponent(plaintext)));
+  }
+}
+
+async function decryptMessage(payloadB64, identity) {
+  try {
+    const vetkeysMod = await import('https://esm.sh/@icp-sdk/vetkeys@0.5.0?bundle').catch(() => null);
+    if (!vetkeysMod) {
+      try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
+    }
+    const { TransportSecretKey, DerivedPublicKey, EncryptedVetKey, IbeCiphertext } = vetkeysMod;
+
+    const backend = await getBackend(true);
+    if (!backend) {
+      try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
+    }
+    const seed = crypto.getRandomValues(new Uint8Array(32));
+    const transportSecretKey = TransportSecretKey.fromSeed(seed);
+    const transportPublicKey = transportSecretKey.publicKey();
+
+    const [encryptedKeyBytes, publicKeyBytes] = await Promise.all([
+      backend.deriveKey(transportPublicKey),
+      backend.getPublicKey()
+    ]);
+
+    const verificationKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
+    const encryptedVetKey = EncryptedVetKey.deserialize(new Uint8Array(encryptedKeyBytes));
+    
+    const vetKey = encryptedVetKey.decryptAndVerify(
+      transportSecretKey, 
+      verificationKey, 
+      new Uint8Array(identity.getPrincipal().toUint8Array())
+    );
+
+    const rawCiphertext = Uint8Array.from(atob(payloadB64), c => c.charCodeAt(0));
+    const plaintext = IbeCiphertext.deserialize(rawCiphertext).decrypt(vetKey);
+    return new TextDecoder().decode(plaintext);
+  } catch (e) {
+    try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
+  }
+}
+
+async function trackEvent(eventAction = 'pageview') {
+  if (!shouldTrack()) return;
+  if (Date.now() - lastTrackTime < 2000 && eventAction === 'pageview') return;
+  lastTrackTime = Date.now();
+  try {
+    const backend = await getBackend(false);
+    if (!backend) return;
+    const deviceId = getOrCreateDeviceId();
+    if (!deviceId) return;
+    const consent = localStorage.getItem('traffic_consent') || 'ignored';
+    const country = await getCountryCode();
+    const meta = parseUserAgent();
+
+    await backend.logVisit(deviceId, consent, country, meta.device, meta.browser, eventAction ? [eventAction] : []);
+  } catch (err) {
+    console.error("Traffic logging error", err);
+  }
+}
+window.trackEvent = trackEvent;
+
+window.handleConsent = function(choice) {
+  const banner = document.getElementById('traffic-consent-banner');
+  if (banner) banner.style.display = 'none';
+  localStorage.setItem('traffic_consent', choice);
+  if (choice === 'accepted') trackEvent('pageview');
+  else {
+    localStorage.removeItem('tb_device_id');
+    localStorage.removeItem('tb_country');
   }
 };
-
-window.handleChatEnter = (e) => { if (e.key === 'Enter') window.sendQuery(); };
 
 window.triggerIILogin = async function() {
   const history = document.getElementById('chat-history');
@@ -1076,38 +1395,44 @@ window.triggerIILogin = async function() {
 
   try {
     const client = await getAuthClient();
-    
+    if (!client) {
+      botMsg.textContent = 'Auth client offline.';
+      return;
+    }
     if (await client.isAuthenticated()) {
       await client.logout();
+      cachedAgent = null;
+      cachedAgentIdentity = null;
     }
 
     botMsg.textContent = 'Connecting to Internet Identity...';
 
     await client.login({
       identityProvider: 'https://identity.ic0.app/#authorize',
+      maxTimeToLive: BigInt(8) * BigInt(24) * BigInt(60) * BigInt(60) * BigInt(1000) * BigInt(1000) * BigInt(1000),
+      windowOpenerFeatures: 'toolbar=0,location=0,menubar=0,width=525,height=705,left=400,top=100',
       onSuccess: async () => {
+        cachedAgent = null;
+        cachedAgentIdentity = null;
         const identity = client.getIdentity();
         const principalText = identity.getPrincipal().toText();
         
         botMsg.textContent = '';
         const authDiv = document.createElement('div');
-        authDiv.style.display = 'flex';
-        authDiv.style.flexDirection = 'column';
-        authDiv.style.gap = '8px';
-        
-        authDiv.innerHTML = `<strong>✅ Logged in successfully!</strong><br>Your Internet Identity Principal ID (PID):`;
+        authDiv.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+        authDiv.innerHTML = `<strong>✅ Logged in successfully! Session remembered for 8 days.</strong><br>Your Principal ID:`;
         
         const inputPid = document.createElement('input');
         inputPid.type = 'text';
         inputPid.readOnly = true;
         inputPid.value = principalText;
         inputPid.style.cssText = 'font-family:monospace; font-size:0.75rem; padding:8px; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:8px; color:#00bfff; width:100%; cursor:pointer;';
-        inputPid.onclick = () => { inputPid.select(); navigator.clipboard.writeText(principalText); showToast('PID Copied to Clipboard!'); };
+        inputPid.onclick = () => { inputPid.select(); navigator.clipboard.writeText(principalText); showToast('PID Copied!'); };
         
         authDiv.appendChild(inputPid);
-        authDiv.appendChild(document.createTextNode('Click the box to copy your PID and send it over!'));
         botMsg.appendChild(authDiv);
         history.scrollTop = history.scrollHeight;
+        updateUnreadBadge();
       },
       onError: (err) => {
         botMsg.textContent = `Login failed or cancelled: ${err || 'Unknown error'}`;
@@ -1118,12 +1443,75 @@ window.triggerIILogin = async function() {
   }
 };
 
-window.sendQuery = async function(presetText = null) {
+async function updateUnreadBadge() {
+  const badge = document.getElementById('ai-unread-badge');
+  if (!badge) return;
+  try {
+    const client = await getAuthClient();
+    if (!client || !await client.isAuthenticated()) {
+      badge.classList.remove('active');
+      return;
+    }
+    const identity = client.getIdentity();
+    if (identity.getPrincipal().toText() !== OWNER_PRINCIPAL) {
+      badge.classList.remove('active');
+      return;
+    }
+    const backend = await getBackend(true);
+    if (!backend) return;
+    const count = await backend.getUnreadCount();
+    const num = Number(count);
+    if (num > 0) {
+      badge.textContent = num > 99 ? '99+' : num.toString();
+      badge.classList.add('active');
+    } else {
+      badge.classList.remove('active');
+    }
+  } catch (e) {
+    badge.classList.remove('active');
+  }
+}
+
+function formatReadableLink(linkName) {
+  if (!linkName) return '';
+  const clean = linkName.replace('click:', '');
+  const mapping = {
+    'youtube': 'YouTube',
+    'openchat': 'OpenChat',
+    'telegram': 'Telegram',
+    'x': 'X (Twitter)',
+    'instagram': 'Instagram',
+    'facebook': 'Facebook',
+    'discord': 'Discord',
+    'github': 'GitHub',
+    'tiktok': 'TikTok',
+    'truthsocial': 'Truth Social',
+    'tumblr': 'Tumblr',
+    'bluesky': 'Bluesky',
+    'openchat_dapp': 'OpenChat dApp',
+    'clown': 'Clown dApp',
+    'oisy': 'Oisy Wallet',
+    'randseed': 'Randseed',
+    'buy_coffee': 'Buy Me a Coffee'
+  };
+  return mapping[clean] || clean.charAt(0).toUpperCase() + clean.slice(1).replace(/_/g, ' ');
+}
+
+function formatCountryName(code) {
+  if (!code || code === 'Unknown') return 'Unknown Region';
+  const names = {
+    'DE': 'Germany (DE)', 'US': 'United States (US)', 'GB': 'United Kingdom (GB)',
+    'FR': 'France (FR)', 'CA': 'Canada (CA)', 'IR': 'Iran (IR)', 'NL': 'Netherlands (NL)'
+  };
+  return names[code.toUpperCase()] || code.toUpperCase();
+}
+
+window.sendQuery = async function(presetText) {
   if (isSending) return;
   const input = document.getElementById('chat-input');
   const history = document.getElementById('chat-history');
-  if (!input || !history) return;
-  const text = presetText !== null ? presetText : input.value.trim();
+  if (!history) return;
+  const text = presetText !== undefined && presetText !== null ? presetText : (input ? input.value.trim() : '');
   if (!text) return;
 
   isSending = true;
@@ -1134,12 +1522,12 @@ window.sendQuery = async function(presetText = null) {
   userMsg.className = 'chat-msg user';
   userMsg.textContent = text;
   history.appendChild(userMsg);
-  if (presetText === null) input.value = '';
+  if (input && (presetText === undefined || presetText === null)) input.value = '';
   history.scrollTop = history.scrollHeight;
 
   const botMsg = document.createElement('div');
   botMsg.className = 'chat-msg bot';
-  botMsg.textContent = 'Thinking...';
+  botMsg.textContent = 'Connecting to IC Canister...';
   history.appendChild(botMsg);
   history.scrollTop = history.scrollHeight;
 
@@ -1148,41 +1536,41 @@ window.sendQuery = async function(presetText = null) {
   if (lower.startsWith('ticket ') || lower.startsWith('تیکت ')) {
     const messageContent = text.replace(/^(ticket|تیکت)\s+/i, '').trim();
     if (!messageContent) {
-      botMsg.textContent = "Please include a message after 'ticket' or 'تیکت'. Example: ticket Can you cover Oisy wallet?";
+      botMsg.textContent = "Please include a message after 'ticket'. Example: ticket Hello!";
       isSending = false;
       if (sendBtn) sendBtn.disabled = false;
       return;
     }
     try {
-      botMsg.textContent = 'Encrypting message end-to-end...';
-      const encryptedPayload = await encryptMessage(messageContent);
+      botMsg.textContent = 'Encrypting & submitting note...';
+      const encryptedPayload = await encryptMessage(messageContent, OWNER_PRINCIPAL);
       const backend = await getBackend(false);
+      if (!backend) throw new Error("Canister connection offline");
       const resId = await backend.submitTicket(encryptedPayload);
       if (resId !== null && resId !== undefined) {
-        botMsg.textContent = `🔒 Encrypted anonymous ticket sent successfully! Reference ID: #${resId.toString()}`;
+        botMsg.textContent = `📬 Note submitted! Ticket ID: #${resId.toString()}`;
+        updateUnreadBadge();
       } else {
-        botMsg.textContent = "❌ Failed to send ticket. Message may be too long or inbox is full.";
+        botMsg.textContent = "❌ Failed to send ticket. Server cooldown active.";
       }
     } catch (e) {
-      botMsg.textContent = `Error sending encrypted ticket: ${e.message || 'Network error'}`;
+      botMsg.textContent = `Error sending ticket: ${e.message || 'Network error'}`;
     }
     history.scrollTop = history.scrollHeight;
     isSending = false;
     if (sendBtn) sendBtn.disabled = false;
-    setTimeout(() => { lastTrackTime = Date.now(); }, 1000);
     return;
   }
 
-  if (lower === 'show tickets' || lower === 'show unread') {
+  if (lower === 'show tickets' || lower === 'show unread' || lower === 'tickets') {
     try {
       const client = await getAuthClient();
-      if (!await client.isAuthenticated()) {
+      if (!client || !await client.isAuthenticated()) {
         botMsg.textContent = '';
         const authDiv = document.createElement('div');
-        authDiv.innerHTML = `🔒 Owner access requires authentication.<br><br>`;
+        authDiv.innerHTML = `🔒 Owner access requires Internet Identity login.<br><br>`;
         const loginBtn = document.createElement('button');
         loginBtn.className = 'gradient-btn';
-        loginBtn.style.marginTop = '6px';
         loginBtn.textContent = 'Login with Internet Identity';
         loginBtn.onclick = () => window.triggerIILogin();
         authDiv.appendChild(loginBtn);
@@ -1194,10 +1582,8 @@ window.sendQuery = async function(presetText = null) {
 
       const backend = await getBackend(true);
       const identity = client.getIdentity();
-      const currentPrincipal = identity.getPrincipal().toText();
-      
-      if (currentPrincipal !== OWNER_PRINCIPAL) {
-        botMsg.textContent = `⛔ Unauthorized: Logged-in Principal (${currentPrincipal.substring(0, 8)}...) does not match the owner principal.`;
+      if (identity.getPrincipal().toText() !== OWNER_PRINCIPAL) {
+        botMsg.textContent = `⛔ Unauthorized: Logged-in identity is not the canister owner.`;
         isSending = false;
         if (sendBtn) sendBtn.disabled = false;
         return;
@@ -1205,23 +1591,19 @@ window.sendQuery = async function(presetText = null) {
 
       botMsg.textContent = 'Fetching and decrypting tickets...';
       const ticketsOpt = await backend.getTickets();
-      if (ticketsOpt === null || ticketsOpt === undefined) {
-        botMsg.textContent = "Unauthorized: Your current Internet Identity principal is not authorized as the owner.";
+      if (!ticketsOpt) {
+        botMsg.textContent = "No tickets returned.";
       } else {
         const rawTickets = Array.isArray(ticketsOpt) ? (ticketsOpt[0] || []) : ticketsOpt;
         const tickets = Array.isArray(rawTickets) ? rawTickets : [];
         
         botMsg.textContent = '';
-        
         const headerWrap = document.createElement('div');
         headerWrap.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:8px;';
 
         const topRow = document.createElement('div');
         topRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
-        
-        const titleStrong = document.createElement('strong');
-        titleStrong.innerHTML = `📬 Decrypted Inbox (${tickets.length})`;
-        topRow.appendChild(titleStrong);
+        topRow.innerHTML = `<strong>📬 Inbox (${tickets.length})</strong>`;
 
         if (tickets.length > 0) {
           const actionRow = document.createElement('div');
@@ -1233,17 +1615,15 @@ window.sendQuery = async function(presetText = null) {
           markAllBtn.onclick = async () => {
             await backend.markAllRead();
             window.sendQuery('show tickets');
-            showToast('All tickets marked as read!');
           };
 
           const deleteAllBtn = document.createElement('button');
-          markAllBtn.className = 'ticket-action-btn danger';
+          deleteAllBtn.className = 'ticket-action-btn danger';
           deleteAllBtn.textContent = '🗑️ Delete All';
           deleteAllBtn.onclick = async () => {
-            if (confirm('Are you sure you want to delete all tickets?')) {
+            if (confirm('Delete all tickets?')) {
               await backend.clearTickets();
               window.sendQuery('show tickets');
-              showToast('All tickets cleared!');
             }
           };
 
@@ -1259,26 +1639,62 @@ window.sendQuery = async function(presetText = null) {
 
         if (tickets.length === 0) {
           const empty = document.createElement('div');
-          empty.style.fontSize = '0.8rem';
-          empty.style.color = 'var(--text-secondary)';
-          empty.style.marginTop = '6px';
+          empty.style.cssText = 'font-size:0.8rem; color:var(--text-secondary); margin-top:6px;';
           empty.textContent = 'No tickets in inbox.';
           botMsg.appendChild(empty);
         } else {
           for (const t of tickets) {
-            if (lower === 'show unread' && t.read) continue;
-            const decryptedText = await decryptMessage(t.message);
+            if (lower === 'show unread' && (t.read || t.archived)) continue;
+            const decryptedText = await decryptMessage(t.message, identity);
             const card = document.createElement('div');
             card.className = 'ticket-item';
             const dateStr = new Date(Number(t.created) / 1_000_000).toLocaleString();
             const unreadBadge = t.read ? '' : ' <span style="color:#00bfff; font-size:0.65rem;">● UNREAD</span>';
-            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0; color:#2ed573;">🔒 ${escapeHtml(decryptedText)}</div>`;
+            const archivedBadge = t.archived ? ' <span style="color:#ffa500; font-size:0.65rem;">[ARCHIVED]</span>' : '';
+            
+            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge}${archivedBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0; color:#2ed573;">🔒 </div>`;
+            card.lastChild.appendChild(document.createTextNode(decryptedText));
+
+            const btnRow = document.createElement('div');
+            btnRow.className = 'ticket-actions-row';
+
+            const readBtn = document.createElement('button');
+            readBtn.className = 'ticket-action-btn';
+            readBtn.textContent = t.read ? 'Mark Unread' : 'Mark Read';
+            readBtn.onclick = async () => {
+              await backend.markTicketRead(t.id, !t.read);
+              window.sendQuery('show tickets');
+              updateUnreadBadge();
+            };
+
+            const archiveBtn = document.createElement('button');
+            archiveBtn.className = 'ticket-action-btn';
+            archiveBtn.textContent = t.archived ? 'Unarchive' : 'Archive';
+            archiveBtn.onclick = async () => {
+              await backend.archiveTicket(t.id, !t.archived);
+              window.sendQuery('show tickets');
+              updateUnreadBadge();
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'ticket-action-btn danger';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.onclick = async () => {
+              await backend.deleteTicket(t.id);
+              window.sendQuery('show tickets');
+              updateUnreadBadge();
+            };
+
+            btnRow.appendChild(readBtn);
+            btnRow.appendChild(archiveBtn);
+            btnRow.appendChild(deleteBtn);
+            card.appendChild(btnRow);
             botMsg.appendChild(card);
           }
         }
       }
     } catch (e) {
-      botMsg.textContent = `Authentication or decryption error: ${e.message || e}`;
+      botMsg.textContent = `Error: ${e.message || e}`;
     }
     history.scrollTop = history.scrollHeight;
     isSending = false;
@@ -1286,244 +1702,115 @@ window.sendQuery = async function(presetText = null) {
     return;
   }
 
-  if (lower.includes("how many people visited") || lower.includes("traffic") || lower.includes("stats") || lower.includes("visitor count")) {
+  if (lower.includes("traffic") || lower.includes("stats") || lower.includes("analytics")) {
     try {
       const backend = await getBackend(false);
-      if (!backend) {
-        botMsg.textContent = "Error: Unable to connect to backend canister.";
-        isSending = false;
-        if (sendBtn) sendBtn.disabled = false;
-        return;
-      }
+      if (!backend) throw new Error("Canister offline");
       const stats = await backend.getTrafficStats();
-      
-      const topCountry = stats.topCountries[0] ? `${stats.topCountries[0].name} (${stats.topCountries[0].count.toString()})` : 'None';
-      const topDevice = stats.topDevices[0] ? `${stats.topDevices[0].name} (${stats.topDevices[0].count.toString()})` : 'None';
-      const topBrowser = stats.topBrowsers[0] ? `${stats.topBrowsers[0].name} (${stats.topBrowsers[0].count.toString()})` : 'None';
-      
+
+      const topCountriesStr = stats.topCountries && stats.topCountries.length > 0
+        ? stats.topCountries.map(c => `${formatCountryName(c.name)}: <b>${c.count.toString()}</b>`).join('<br>')
+        : 'No country data yet';
+
+      const topDevicesStr = stats.topDevices && stats.topDevices.length > 0
+        ? stats.topDevices.map(d => `${escapeHtml(d.name)}: <b>${d.count.toString()}</b>`).join('<br>')
+        : 'No device data yet';
+
+      const topBrowsersStr = stats.topBrowsers && stats.topBrowsers.length > 0
+        ? stats.topBrowsers.map(b => `${escapeHtml(b.name)}: <b>${b.count.toString()}</b>`).join('<br>')
+        : 'No browser data yet';
+
+      const topLinksStr = stats.topLinks && stats.topLinks.length > 0
+        ? stats.topLinks.map(l => `${formatReadableLink(l.name)}: <b>${l.count.toString()}</b>`).join('<br>')
+        : 'No button/link clicks recorded yet';
+
+      const topSearchesStr = stats.topSearches && stats.topSearches.length > 0
+        ? stats.topSearches.map(s => `"${escapeHtml(s.name)}": <b>${s.count.toString()}</b>`).join('<br>')
+        : 'No searches logged yet';
+
       const card = document.createElement('div');
       card.className = 'analytics-card';
 
-      const header = document.createElement('div');
-      header.className = 'analytics-header';
-      
-      const titleSpan = document.createElement('span');
-      titleSpan.textContent = '📊 7-Day Live Analytics';
-      const dot = document.createElement('span');
-      dot.className = 'live-dot';
-      header.appendChild(titleSpan);
-      header.appendChild(dot);
-
-      const grid = document.createElement('div');
-      grid.className = 'analytics-grid';
-
-      const items = [
-        { val: stats.pageViews.toString(), lbl: 'Pageviews' },
-        { val: stats.uniqueDevices.toString(), lbl: 'Unique Devices' },
-        { val: stats.buttonClicks.toString(), lbl: 'Clicks' }
-      ];
-
-      items.forEach(it => {
-        const sItem = document.createElement('div');
-        sItem.className = 'stat-item';
-        const sVal = document.createElement('span');
-        sVal.className = 'stat-val';
-        sVal.textContent = it.val;
-        const sLbl = document.createElement('span');
-        sLbl.className = 'stat-lbl';
-        sLbl.textContent = it.lbl;
-        sItem.appendChild(sVal);
-        sItem.appendChild(sLbl);
-        grid.appendChild(sItem);
-      });
-
-      const breakdown = document.createElement('div');
-      breakdown.className = 'analytics-breakdown';
-      
-      const b1 = document.createElement('div');
-      b1.appendChild(document.createTextNode(`🌍 Top Country: ${topCountry}`));
-      const b2 = document.createElement('div');
-      b2.appendChild(document.createTextNode(`💻 Top Device/OS: ${topDevice}`));
-      const b3 = document.createElement('div');
-      b3.appendChild(document.createTextNode(`🌐 Top Browser: ${topBrowser}`));
-
-      breakdown.appendChild(b1);
-      breakdown.appendChild(b2);
-      breakdown.appendChild(b3);
-
-      card.appendChild(header);
-      card.appendChild(grid);
-      card.appendChild(breakdown);
+      card.innerHTML = `
+        <div class="analytics-header"><span>📊 7-Day Live Analytics</span><span class="live-dot"></span></div>
+        <div class="analytics-grid">
+          <div class="stat-item"><span class="stat-val">${stats.pageViews.toString()}</span><span class="stat-lbl">Pageviews</span></div>
+          <div class="stat-item"><span class="stat-val">${stats.uniqueDevices.toString()}</span><span class="stat-lbl">Unique Devices</span></div>
+          <div class="stat-item"><span class="stat-val">${stats.buttonClicks.toString()}</span><span class="stat-lbl">Clicks</span></div>
+        </div>
+        <div class="analytics-breakdown">
+          <div class="analytics-row"><span class="analytics-label-title">🌍 Top Country</span><span class="analytics-val-box">${topCountriesStr}</span></div>
+          <div class="analytics-row"><span class="analytics-label-title">💻 Top Device</span><span class="analytics-val-box">${topDevicesStr}</span></div>
+          <div class="analytics-row"><span class="analytics-label-title">🌐 Top Browser</span><span class="analytics-val-box">${topBrowsersStr}</span></div>
+          <div class="analytics-row"><span class="analytics-label-title">🖱️ Top Clicked Links</span><span class="analytics-val-box">${topLinksStr}</span></div>
+          <div class="analytics-row"><span class="analytics-label-title">🔍 Top Searches</span><span class="analytics-val-box" style="color:#00bfff;">${topSearchesStr}</span></div>
+        </div>
+      `;
 
       botMsg.textContent = '';
       botMsg.appendChild(card);
     } catch (e) {
-      console.error(e);
-      botMsg.textContent = `Couldn't fetch traffic stats: ${e.message || 'Network error'}`;
+      botMsg.textContent = `Error fetching canister stats: ${e.message || e}`;
     }
     history.scrollTop = history.scrollHeight;
     isSending = false;
     if (sendBtn) sendBtn.disabled = false;
-    setTimeout(() => { lastTrackTime = Date.now(); }, 1000);
     return;
   }
 
   try {
     const backend = await getBackend(false);
-    if (!backend) {
-      botMsg.textContent = "Error: Backend connection failed.";
-      isSending = false;
-      if (sendBtn) sendBtn.disabled = false;
-      return;
-    }
+    if (!backend) throw new Error("Canister offline");
     trackEvent(`search:${text}`);
-    
     const results = await backend.askBot(text);
     botMsg.textContent = '';
     if (results && results.length > 0) {
       const introDiv = document.createElement('div');
-      introDiv.textContent = 'Here are the best matching tutorials:';
+      introDiv.textContent = 'Matching tutorials:';
       botMsg.appendChild(introDiv);
 
       results.forEach(item => {
+        const safeUrl = item.url && item.url.startsWith('https://') ? item.url : '#';
         const card = document.createElement('div');
         card.className = 'video-card';
-        
-        const h3 = document.createElement('h3');
-        h3.textContent = item.title;
-
-        const p = document.createElement('p');
-        p.style.cssText = 'font-size:0.75rem; color:rgba(255,255,255,0.6); margin:4px 0 8px;';
-        p.textContent = item.description || '';
-
-        const a = document.createElement('a');
-        a.href = item.url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.className = 'gradient-btn';
-        a.textContent = 'Watch Video ↗';
-        a.addEventListener('click', () => trackEvent('click:watch_video'));
-
-        card.appendChild(h3);
-        card.appendChild(p);
-        card.appendChild(a);
+        card.innerHTML = `<h3>${escapeHtml(item.title || '')}</h3><p style="font-size:0.75rem; color:rgba(255,255,255,0.6); margin:4px 0 8px;">${escapeHtml(item.description || '')}</p><a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener" class="gradient-btn">Watch Video ↗</a>`;
         botMsg.appendChild(card);
       });
     } else {
-      botMsg.textContent = 'No matching tutorials found. Browse all videos on the YouTube channel directly!';
+      botMsg.textContent = 'No matching tutorials found in library.';
     }
   } catch (err) {
-    botMsg.textContent = `Error loading results: ${err.message || 'Unknown error'}`;
+    botMsg.textContent = `Error: ${err.message || 'Canister query failed'}`;
   }
   history.scrollTop = history.scrollHeight;
   isSending = false;
   if (sendBtn) sendBtn.disabled = false;
-  setTimeout(() => { lastTrackTime = Date.now(); }, 1000);
 };
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
-
-async function trackEvent(eventAction = 'pageview') {
-  if (!shouldTrack()) return;
-  if (Date.now() - lastTrackTime < 2000 && eventAction === 'pageview') return;
-  try {
-    const backend = await getBackend(false);
-    if (!backend) return;
-    const deviceId = getOrCreateDeviceId();
-    if (!deviceId) return;
-    const consent = localStorage.getItem('traffic_consent') || 'ignored';
-    const country = await getCountryCode();
-    const meta = parseUserAgent();
-
-    await backend.logVisit(
-      deviceId,
-      consent,
-      country,
-      meta.device,
-      meta.browser,
-      eventAction ? [eventAction] : []
-    );
-    lastTrackTime = Date.now();
-  } catch (err) {
-    console.error("Traffic logging error", err);
-  }
-}
-window.trackEvent = trackEvent;
-
-window.handleConsent = function(choice) {
-  const banner = document.getElementById('traffic-consent-banner');
-  if (banner) banner.style.display = 'none';
-  localStorage.setItem('traffic_consent', choice);
-  if (choice === 'accepted') {
-    trackEvent('pageview');
-  } else {
-    localStorage.removeItem('tb_device_id');
-    localStorage.removeItem('tb_country');
-  }
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-  window.cryptoModal.init();
-
-  if (shouldTrack()) {
-    trackEvent('pageview');
-  }
-
-  const consent = localStorage.getItem('traffic_consent');
-  if (!consent) {
-    const banner = document.getElementById('traffic-consent-banner');
-    if (banner) banner.style.display = 'block';
-  }
-
-  document.querySelectorAll('a.glass-card').forEach(link => {
-    link.addEventListener('click', () => {
-      const linkName = link.querySelector('.text')?.innerText || 'link';
-      trackEvent(`click:${linkName.toLowerCase()}`);
-    });
-  });
-
-  const glow1 = document.getElementById('glow-1');
-  const glow2 = document.getElementById('glow-2');
-
-  document.addEventListener('mousemove', (e) => {
-    if (!glow1 || !glow2) return;
-    const x = e.clientX / window.innerWidth;
-    const y = e.clientY / window.innerHeight;
-    glow1.style.transform = `translate(${x * 40}px, ${y * 40}px)`;
-    glow2.style.transform = `translate(${-x * 40}px, ${-y * 40}px)`;
-  });
-
-  document.querySelectorAll('.magnetic-card').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left - rect.width / 2;
-      const y = e.clientY - rect.top - rect.height / 2;
-      card.style.transform = `translate(${x * 0.08}px, ${y * 0.08}px) scale(1.015)`;
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = 'translate(0px, 0px) scale(1)';
-    });
-  });
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      window.cryptoModal.close();
-      const chatPanel = document.getElementById('ai-chat-panel');
-      if (chatPanel?.classList.contains('open')) {
-        window.toggleChat();
-      }
-    }
-  });
-});
 '''
     script_js_content = script_js_content.replace("__BACKEND_ID__", backend_id).replace("__OWNER_PRINCIPAL__", owner_principal).replace("__CRYPTO_CONFIG__", json.dumps(crypto_config, indent=2))
     os.makedirs("assets", exist_ok=True)
     with open("assets/script.js", "w", encoding="utf-8") as f:
         f.write(script_js_content)
 
-    print("\n✅ Setup.py successfully updated! Terminal PID captured and set as PUBLISHER in backend/main.mo.")
+    if yt_url:
+        print(f"\n🔍 Scraping videos from {yt_url} using yt-dlp...")
+        ydl_opts = {'extract_flat': 'in_playlist', 'skip_download': True, 'ignoreerrors': True}
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(yt_url, download=False)
+                entries = info.get('entries', [])
+                print(f"Found {len(entries)} video entries.")
+        except Exception as e:
+            print(f"⚠️ Warning during YouTube scraping: {e}")
 
-if __name__ == "__main__":
+    print("\n==================================================")
+    print("🎉 Full setup and code generation completed successfully!")
+    print("==================================================")
+
+if __name__ == '__main__':
     main()
