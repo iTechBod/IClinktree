@@ -242,7 +242,7 @@ ic-vetkeys = "0.6.0"
         "dependencies": {
             "@dfinity/agent": "^0.21.4",
             "@dfinity/auth-client": "^0.21.4",
-            "@icp-sdk/vetkeys": "^0.1.0"
+            "@icp-sdk/vetkeys": "^0.7.0"
         },
         "devDependencies": {},
         "private": True
@@ -555,7 +555,7 @@ actor {{
             throw Error.reject("Unauthorized: Only owner can derive keys");
         }};
         let input = Principal.toBlob(caller);
-        ExperimentalCycles.add(26_000_000_000);
+        ExperimentalCycles.add(30_000_000_000);
         let result = await ic.vetkd_derive_key({{
             input = input;
             context = Text.encodeUtf8(DOMAIN_SEPARATOR);
@@ -1119,9 +1119,9 @@ let cachedAgentIdentity = null;
 
 (async function initWeb3() {
   try {
-    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4?bundle');
-    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4?bundle');
-    const princMod = await import('https://esm.sh/@dfinity/principal@0.21.4?bundle');
+    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4');
+    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4');
+    const princMod = await import('https://cdn.jsdelivr.net/npm/@icp-sdk/core/principal/+esm');
     
     Actor = agentMod.Actor;
     HttpAgent = agentMod.HttpAgent;
@@ -1190,7 +1190,7 @@ async function getCountryCode() {
 
 async function getAuthClient() {
   if (!AuthClient) {
-    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4?bundle').catch(() => null);
+    const authMod = await import('https://esm.sh/@dfinity/auth-client@0.21.4').catch(() => null);
     if (authMod) AuthClient = authMod.AuthClient;
   }
   if (!AuthClient) return null;
@@ -1207,7 +1207,7 @@ async function getAuthClient() {
 
 async function getBackend(isAuthenticated = false) {
   if (!Actor || !HttpAgent) {
-    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4?bundle').catch(() => null);
+    const agentMod = await import('https://esm.sh/@dfinity/agent@0.21.4').catch(() => null);
     if (agentMod) {
       Actor = agentMod.Actor;
       HttpAgent = agentMod.HttpAgent;
@@ -1287,70 +1287,65 @@ async function getBackend(isAuthenticated = false) {
 }
 
 async function encryptMessage(plaintext, ownerPrincipalText) {
-  try {
-    const vetkeysMod = await import('https://esm.sh/@icp-sdk/vetkeys@0.5.0?bundle').catch(() => null);
-    if (!vetkeysMod) return btoa(unescape(encodeURIComponent(plaintext)));
-    const { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } = vetkeysMod;
-    const princMod = await import('https://esm.sh/@dfinity/principal@0.21.4?bundle').catch(() => null);
-    if (princMod) Principal = princMod.Principal;
+  const vetkeysMod = await import('https://cdn.jsdelivr.net/npm/@icp-sdk/vetkeys@0.7.0/+esm');
+  const { DerivedPublicKey, IbeCiphertext, IbeIdentity, IbeSeed } = vetkeysMod;
+  const princMod = await import('https://cdn.jsdelivr.net/npm/@icp-sdk/core/principal/+esm').catch(() => null);
+  if (princMod) Principal = princMod.Principal;
 
-    const backend = await getBackend(false);
-    if (!backend) return btoa(unescape(encodeURIComponent(plaintext)));
-    const publicKeyBytes = await backend.getPublicKey();
-    const publicKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
-    
-    const ownerPrincipal = Principal.fromText(ownerPrincipalText);
-    const identity = IbeIdentity.fromBytes(ownerPrincipal.toUint8Array());
-    const seed = IbeSeed.fromBytes(crypto.getRandomValues(new Uint8Array(32)));
-    
-    const ciphertext = IbeCiphertext.encrypt(
-      publicKey, 
-      identity, 
-      seed, 
-      new TextEncoder().encode(plaintext)
-    );
-    return btoa(String.fromCharCode(...ciphertext.serialize()));
-  } catch (e) {
-    return btoa(unescape(encodeURIComponent(plaintext)));
-  }
+  const backend = await getBackend(false);
+  if (!backend) throw new Error("Canister unreachable");
+  const publicKeyBytes = await backend.getPublicKey();
+  const publicKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
+  
+  const ownerPrincipal = Principal.fromText(ownerPrincipalText);
+  const principalBytes = typeof ownerPrincipal.getBytes === 'function' 
+    ? ownerPrincipal.getBytes() 
+    : (typeof ownerPrincipal.toUint8Array === 'function' ? ownerPrincipal.toUint8Array() : new Uint8Array(ownerPrincipal.raw || ownerPrincipal));
+  const identity = IbeIdentity.fromBytes(principalBytes);
+
+  const seed = IbeSeed.random ? IbeSeed.random() : IbeSeed.fromBytes(crypto.getRandomValues(new Uint8Array(32)));
+  
+  const ciphertext = IbeCiphertext.encrypt(
+    publicKey, 
+    identity, 
+    new TextEncoder().encode(plaintext),
+    seed
+  );
+  return btoa(String.fromCharCode(...ciphertext.serialize()));
 }
 
 async function decryptMessage(payloadB64, identity) {
-  try {
-    const vetkeysMod = await import('https://esm.sh/@icp-sdk/vetkeys@0.5.0?bundle').catch(() => null);
-    if (!vetkeysMod) {
-      try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
-    }
-    const { TransportSecretKey, DerivedPublicKey, EncryptedVetKey, IbeCiphertext } = vetkeysMod;
+  const vetkeysMod = await import('https://cdn.jsdelivr.net/npm/@icp-sdk/vetkeys@0.7.0/+esm');
+  const { TransportSecretKey, DerivedPublicKey, EncryptedVetKey, IbeCiphertext } = vetkeysMod;
 
-    const backend = await getBackend(true);
-    if (!backend) {
-      try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
-    }
-    const seed = crypto.getRandomValues(new Uint8Array(32));
-    const transportSecretKey = TransportSecretKey.fromSeed(seed);
-    const transportPublicKey = transportSecretKey.publicKey();
+  const backend = await getBackend(true);
+  if (!backend) throw new Error("Canister unreachable for decryption");
+  
+  const transportSecretKey = TransportSecretKey.random ? TransportSecretKey.random() : TransportSecretKey.fromSeed(crypto.getRandomValues(new Uint8Array(32)));
+  const transportPublicKey = transportSecretKey.publicKeyBytes ? transportSecretKey.publicKeyBytes() : transportSecretKey.publicKey();
 
-    const [encryptedKeyBytes, publicKeyBytes] = await Promise.all([
-      backend.deriveKey(transportPublicKey),
-      backend.getPublicKey()
-    ]);
+  const [encryptedKeyBytes, publicKeyBytes] = await Promise.all([
+    backend.deriveKey(transportPublicKey),
+    backend.getPublicKey()
+  ]);
 
-    const verificationKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
-    const encryptedVetKey = EncryptedVetKey.deserialize(new Uint8Array(encryptedKeyBytes));
-    
-    const vetKey = encryptedVetKey.decryptAndVerify(
-      transportSecretKey, 
-      verificationKey, 
-      new Uint8Array(identity.getPrincipal().toUint8Array())
-    );
+  const verificationKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
+  const encryptedVetKey = EncryptedVetKey.deserialize(new Uint8Array(encryptedKeyBytes));
+  
+  const userPrincipal = identity.getPrincipal();
+  const principalBytes = typeof userPrincipal.getBytes === 'function' 
+    ? userPrincipal.getBytes() 
+    : (typeof userPrincipal.toUint8Array === 'function' ? userPrincipal.toUint8Array() : new Uint8Array(userPrincipal.raw || userPrincipal));
+  
+  const vetKey = encryptedVetKey.decryptAndVerify(
+    transportSecretKey, 
+    verificationKey, 
+    principalBytes
+  );
 
-    const rawCiphertext = Uint8Array.from(atob(payloadB64), c => c.charCodeAt(0));
-    const plaintext = IbeCiphertext.deserialize(rawCiphertext).decrypt(vetKey);
-    return new TextDecoder().decode(plaintext);
-  } catch (e) {
-    try { return decodeURIComponent(escape(atob(payloadB64))); } catch { return payloadB64; }
-  }
+  const rawCiphertext = Uint8Array.from(atob(payloadB64), c => c.charCodeAt(0));
+  const plaintext = IbeCiphertext.deserialize(rawCiphertext).decrypt(vetKey);
+  return new TextDecoder().decode(plaintext);
 }
 
 async function trackEvent(eventAction = 'pageview') {
@@ -1644,37 +1639,22 @@ window.sendQuery = async function(presetText) {
           botMsg.appendChild(empty);
         } else {
           for (const t of tickets) {
-            if (lower === 'show unread' && (t.read || t.archived)) continue;
-            const decryptedText = await decryptMessage(t.message, identity);
+            let decryptedText = "[Unable to decrypt - created with old version]";
+            try {
+              decryptedText = await decryptMessage(t.message, identity);
+            } catch (err) {
+              console.error("Skipping corrupt ticket #" + t.id.toString(), err);
+            }
             const card = document.createElement('div');
             card.className = 'ticket-item';
             const dateStr = new Date(Number(t.created) / 1_000_000).toLocaleString();
             const unreadBadge = t.read ? '' : ' <span style="color:#00bfff; font-size:0.65rem;">● UNREAD</span>';
-            const archivedBadge = t.archived ? ' <span style="color:#ffa500; font-size:0.65rem;">[ARCHIVED]</span>' : '';
             
-            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge}${archivedBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0; color:#2ed573;">🔒 </div>`;
+            card.innerHTML = `<div><strong>#${t.id.toString()}</strong>${unreadBadge} <span style="font-size:0.65rem; color:var(--text-secondary);">${dateStr}</span></div><div style="margin:4px 0; color:#2ed573;">🔒 </div>`;
             card.lastChild.appendChild(document.createTextNode(decryptedText));
 
             const btnRow = document.createElement('div');
             btnRow.className = 'ticket-actions-row';
-
-            const readBtn = document.createElement('button');
-            readBtn.className = 'ticket-action-btn';
-            readBtn.textContent = t.read ? 'Mark Unread' : 'Mark Read';
-            readBtn.onclick = async () => {
-              await backend.markTicketRead(t.id, !t.read);
-              window.sendQuery('show tickets');
-              updateUnreadBadge();
-            };
-
-            const archiveBtn = document.createElement('button');
-            archiveBtn.className = 'ticket-action-btn';
-            archiveBtn.textContent = t.archived ? 'Unarchive' : 'Archive';
-            archiveBtn.onclick = async () => {
-              await backend.archiveTicket(t.id, !t.archived);
-              window.sendQuery('show tickets');
-              updateUnreadBadge();
-            };
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'ticket-action-btn danger';
@@ -1682,11 +1662,8 @@ window.sendQuery = async function(presetText) {
             deleteBtn.onclick = async () => {
               await backend.deleteTicket(t.id);
               window.sendQuery('show tickets');
-              updateUnreadBadge();
             };
 
-            btnRow.appendChild(readBtn);
-            btnRow.appendChild(archiveBtn);
             btnRow.appendChild(deleteBtn);
             card.appendChild(btnRow);
             botMsg.appendChild(card);
