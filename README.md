@@ -1,49 +1,143 @@
-🌐 IClinktree (Web3 Creator Hub) <img width="170" height="20" alt="image" src="https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064" />
+# 🌐 IClinktree (Web3 Creator Hub) <img width="170" height="20" alt="image" src="https://github.com/user-attachments/assets/34ca1631-e1b7-4c42-8ff3-8952baf19064" />
 <img width="114" height="20" alt="image" src="https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40" />
 <img width="82" height="20" alt="image" src="https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a" />
 
+IClinktree is an open-source creator-hub starter project for the Internet Computer (ICP). It includes a Python setup wizard, a generated Motoko backend, browser-side JavaScript for canister connectivity and creator tools, and a collection of image assets.
 
-IClinktree is an open-source creator-hub starter project for the Internet Computer (ICP). It includes a Python setup wizard, a Motoko backend generator, browser-side JavaScript for the canister connection and creator tools, and a collection of image assets.
-
-- **Network:** Internet Computer mainnet
+- **Network:** Internet Computer mainnet (the generated configuration targets ICP; review it before deployment)
 - **License:** MIT (see [`LICENSE`](LICENSE))
 - **Repository:** https://github.com/iTechBod/IClinktree
-- **Language:** English setup flow (no Persian-language setup mode)
-- **Third-party analytics tags:** None are added by this setup wizard.
+- **Setup language:** English
+- **Third-party analytics tags:** The setup wizard does not add Google Analytics or other third-party analytics tags. Its analytics are implemented in the generated application and stored in the backend canister.
 
-> **Important repository note:** The source archive supplied for this update contains `setup.py`, `README.md`, `LICENSE`, and `assets/images/`. It does not contain `assets/index.html`, `assets/styles.css`, or a `push.py` uploader. The wizard generates `backend/main.mo`, `assets/script.js`, and the DFX/package configuration, but it does not generate the missing HTML/CSS template or upload the scraped YouTube entries. A complete website deployment therefore requires those frontend template files and a video-seeding workflow to be supplied separately. Do not interpret a successful setup.py run as proof that the website has been deployed.
+> **Important source-layout note:** The setup wizard generates `backend/main.mo` and `assets/script.js`, along with DFX, Motoko package, and JavaScript package configuration. It does **not** generate the HTML/CSS page templates. A working deployment also needs the frontend files expected by the generated JavaScript, including `assets/index.html` and `assets/styles.css`, plus the image assets referenced by that page. The wizard prepares YouTube metadata for import but does not automatically upload it to the canister. A successful setup run is not proof that the project has built or deployed successfully.
 
-## Features represented by the current setup generator
+## Features
 
-- Motoko backend scaffold with video-search methods, traffic-event storage, and an encrypted visitor-ticket interface.
-- Browser JavaScript scaffold for Internet Identity authentication, canister calls, ticket handling, traffic statistics, tutorial search, and crypto-address display.
-- Config generation for `dfx.json`, `canister_ids.json`, `mops.toml`, and `package.json`.
-- Creator profile, social-link, dApp referral, and cryptocurrency-address prompts.
-- YouTube playlist metadata inspection through `yt-dlp` (the current wizard does not upload those entries to the canister).
-- Local source/configuration ZIP backup after setup generation.
-- Optional recording of two already-existing backup canister IDs after the website has been deployed.
+### Creator hub and profile configuration
+
+- Creator name and biography/subtitle configuration.
+- Social profile links for YouTube, OpenChat, Telegram, X, Instagram, Facebook, Discord, GitHub, TikTok, Truth Social, Tumblr, and Bluesky.
+- Optional fallback to the starter project's default social links for fields left blank.
+- ICP ecosystem dApp referral links for OpenChat, Clown, Oisy, and Randseed, with optional starter-project fallback links.
+- Cryptocurrency address configuration and display support for the configured assets.
+- Creator-facing frontend JavaScript scaffold and canister connection logic.
+
+### 30-day on-chain traffic analytics
+
+The generated backend retains eligible analytics events for a rolling **30-day window** and periodically prunes older records.
+
+The generated analytics view can report:
+
+- Pageviews during the retention window.
+- Unique visitor/device identifiers.
+- Button/link click totals and most-clicked links.
+- Daily pageview counts across the 30-day window, including the daily total and peak day in the frontend display.
+- Top countries, device types, and browsers.
+- Most frequent tutorial searches.
+- Searches that returned no matching videos.
+
+Analytics access is restricted in the backend to the configured **owner** and **publisher** principals. Other callers do not receive the analytics result.
+
+#### Visitor consent and collection
+
+- The generated frontend presents a traffic-consent choice and stores the choice in browser local storage.
+- The browser sends analytics events only when the visitor has accepted.
+- The backend independently rejects events unless the consent value is `accepted`.
+- Visitors who do not accept are not included in the analytics event log.
+- The backend validates the lengths of submitted fields and applies a global request-throttling mechanism to reduce event flooding.
+- Analytics data is stored in the application canister; it is not sent to Google Analytics by this setup wizard.
+
+The analytics system is first-party application functionality, not a replacement for a formal privacy notice or a legal compliance review. Explain the collection and retention practices to visitors in your own privacy notice.
+
+### Encrypted visitor tickets and messaging
+
+- Optional encrypted visitor ticket/messaging feature.
+- Ticket payload encryption/decryption support using the Internet Computer vetKeys SDK.
+- Ticket management methods for the configured owner.
+- Owner-side inbox actions include viewing, marking read/unread, archiving, and deleting tickets, including clearing the inbox.
+- Ticket retention is configurable in the setup wizard from **1 to 3,650 days**; the default is **7 days**.
+- The backend periodically prunes expired tickets.
+- Ticket storage and management methods are omitted from the generated backend when the ticket feature is disabled.
+
+The setup wizard asks for a **Master/Owner Principal ID**. The terminal's active DFX identity is used as the publisher principal when it can be read; otherwise, the owner principal is used as the publisher fallback. Review both generated principal values before deployment.
+
+### vetKeys controls
+
+- Uses the Internet Computer vetKeys interface for the ticket-encryption key workflow.
+- Restricts key derivation to the configured owner and publisher principals.
+- Applies a five-second minimum interval between key-derivation requests.
+- Validates the submitted transport public-key size.
+- The generated backend adds cycles to the vetKD derivation call; ensure the canister has sufficient cycles and test the workflow on a non-production canister first.
+
+### Video library and tutorial search
+
+- Generated Motoko video-library storage and search methods.
+- `askBot` searches the seeded video library and returns matching tutorial records.
+- Search matching includes title, description, and `searchableText`.
+- Includes a small synonym map for selected Apple, crypto, and ICP-related terms.
+- Authorized owner/publisher methods support seeding and clearing the video library.
+- Public query access to the video-library records is exposed by the generated backend.
+
+#### YouTube metadata import preparation
+
+The wizard can inspect the configured YouTube channel/videos URL using `yt-dlp` and write normalized records to:
+
+```text
+video_library_import.json
+```
+
+Each record contains a title, video URL, description, searchable text, and timestamp. This step:
+
+- Does not download the video files.
+- Does not upload the records to the canister.
+- Does not automatically call `seedVideos`.
+
+Use a separate, reviewed seeding workflow to import the JSON records into the deployed backend. Install `yt-dlp` as described below if you want the wizard to perform metadata extraction.
 
 ## Architecture and canister cost
 
-The standard deployment uses **two canisters**:
+The standard website architecture uses **two canisters**:
 
-1. **Backend** — Motoko application logic and on-chain data.
-2. **Website** — static frontend assets.
+1. **Backend canister** — Motoko application logic, video library, analytics event storage, and (if enabled) encrypted visitor tickets.
+2. **Frontend/website canister** — serves the static website assets.
 
-The two optional backup canister IDs are **not required**. The setup wizard does not create or deploy them, and it does not install backup-vault code, automatically copy canister state, synchronize data, or provide a restore operation. It only records IDs supplied by the user in a local `backup_canisters.json` file for a future/manual workflow. Do not pay for extra canisters on the assumption that ID registration itself creates a backup.
+The wizard does not require two additional backup canisters. It does not create, deploy, synchronize, or restore backup canisters.
 
-The wizard also creates a local ZIP archive of the project files in `local_backups/`. This is a **source-code/configuration backup**, not a backup of live canister stable memory, visitor tickets, analytics, or other on-chain state. Keep a copy somewhere separate from your computer.
+### Optional registration of existing backup canister IDs
+
+After your normal website deployment, you may optionally run:
+
+```bash
+python3 setup.py --configure-backups
+```
+
+This asks whether you want to record two existing backup canister IDs in:
+
+```text
+backup_canisters.json
+```
+
+This is only local configuration. It does **not**:
+
+- Create or deploy backup canisters.
+- Install backup-vault code.
+- Copy live canister state.
+- Synchronize data between canisters.
+- Provide an automatic restore operation.
+
+Registering IDs does not itself create a backup or add a canister cost. Do not create or fund extra canisters on the assumption that this option provides automatic redundancy.
 
 ## Prerequisites
 
 Install and initialize:
 
-- DFINITY Canister SDK (`dfx`): https://internetcomputer.org/docs/building-apps/getting-started/install
-- Python 3.9 or newer
-- `yt-dlp`: `python3 -m pip install yt-dlp`
-- Motoko package manager (`mops`) if you use the generated `mops.toml`
+- **DFINITY Canister SDK (`dfx`):** https://internetcomputer.org/docs/building-apps/getting-started/install
+- **Python 3.9 or newer**
+- **`yt-dlp`** for YouTube playlist metadata extraction: `python3 -m pip install yt-dlp`
+- **Motoko package manager (`mops`)** if you use the generated `mops.toml`
 
-Check that DFX is available:
+Check your DFX installation and active identity:
 
 ```bash
 dfx --version
@@ -51,26 +145,47 @@ dfx identity whoami
 dfx identity get-principal
 ```
 
+The active DFX identity is used as the publisher principal when available. Make sure the principals configured by the wizard have the intended permissions on the canisters.
+
 ## Quick start
 
 ```bash
 git clone https://github.com/iTechBod/IClinktree.git
 cd IClinktree
-python3 -m pip install -r requirements.txt
 python3 setup.py
 ```
 
-The wizard asks for the owner principal, ticket-retention preference, creator profile, social links, dApp referrals, crypto addresses, and existing frontend/backend canister IDs. It then writes the generated configuration and source files and creates a timestamped local source backup under `local_backups/`.
+If you want YouTube metadata extraction, install `yt-dlp` first:
 
-### Before deploying
+```bash
+python3 -m pip install yt-dlp
+```
 
-1. Review the generated `backend/main.mo` and `assets/script.js`.
-2. Confirm that the required frontend files exist. In this repository snapshot, `assets/index.html` and `assets/styles.css` are not included and must be added before deploying a working website.
-3. Confirm that the backend and website canisters exist and that your deploying DFX identity has the required controller permissions.
-4. Review the generated canister IDs and network configuration.
-5. Build and deploy using your own verified DFX workflow. The current `setup.py` does **not** run `dfx deploy`.
+The wizard prompts for:
 
-Example commands, after the missing frontend template and all required project files have been supplied:
+1. Owner/Master Principal ID.
+2. Whether to enable encrypted visitor tickets.
+3. Ticket retention period, if tickets are enabled.
+4. Creator name, biography, and YouTube channel/videos URL.
+5. Social media links and whether to use fallback links for blank fields.
+6. ICP ecosystem dApp referral links and optional fallback links.
+7. Cryptocurrency address configuration.
+8. Existing frontend and backend canister IDs and other deployment configuration requested by the wizard.
+9. Confirmation that the relevant canister controller permissions and image assets have been checked.
+
+Review every generated file and configured principal before building or deploying.
+
+## Before deploying
+
+1. Confirm that the required frontend template files exist. The setup wizard does not create `assets/index.html` or `assets/styles.css`.
+2. Confirm that all image files referenced by the frontend are present in `assets/images/`.
+3. Review `backend/main.mo`, especially owner/publisher authorization, ticket settings, analytics retention, and vetKeys calls.
+4. Review `assets/script.js`, including the consent interface, canister IDs, and frontend behavior.
+5. Confirm that your deploying DFX identity has the required controller permissions for both the backend and frontend canisters.
+6. Confirm that the generated canister IDs and network settings are correct.
+7. Build and test before upgrading or deploying to production.
+
+Example commands, once the complete frontend templates and project files are present:
 
 ```bash
 mops install
@@ -78,60 +193,44 @@ dfx build --network ic
 dfx deploy --network ic
 ```
 
-These commands are examples, not a guarantee that the incomplete source archive is deployable as-is.
+These are example deployment commands. The current `setup.py` generates project files but does **not** run `dfx build` or `dfx deploy`, and it does not guarantee that the supplied project is deployable without the missing frontend templates.
 
-## Optional backup canister IDs — after deployment
-
-Only after your normal website deployment is complete, you can run:
-
-```bash
-python3 setup.py --configure-backups
-```
-
-The wizard asks whether you want to record two existing backup canister IDs. If you answer yes, it writes:
-
-```text
-backup_canisters.json
-```
-
-If you answer no, the standard two-canister setup remains unchanged. The optional IDs are simply recorded locally; no extra canister is created, charged, deployed, or synchronized by this command.
-
-## Local source backup
-
-Every normal setup run creates an archive similar to:
-
-```text
-local_backups/iclinktree-source-YYYYMMDD-HHMMSS.zip
-```
-
-It includes project source/configuration and image assets while excluding `.git`, `.dfx`, `.mops`, virtual environments, dependency folders, and previous local backup archives. It does not include live canister state. Copy this ZIP to another drive or secure storage location.
-
-## Image assets
-
-The repository already includes an `assets/images/` directory with the current profile image, social icons, crypto icons, and `og-cover.png`. You do not need to add another OG cover just to run the setup generator. Replace the profile image with your own while preserving the filename expected by your frontend template, or update that template's image path. Review the social/crypto icon filenames before changing them.
-
-## Files generated by setup.py
+## Generated and supporting files
 
 | File | Purpose |
 |---|---|
-| `backend/main.mo` | Generated Motoko backend source |
-| `assets/script.js` | Generated browser-side application logic |
-| `dfx.json` | DFX canister/network configuration |
-| `canister_ids.json` | Mainnet canister ID mapping |
-| `mops.toml` | Motoko dependencies |
-| `package.json` | JavaScript dependency metadata |
-| `local_backups/*.zip` | Local source/configuration snapshots |
-| `backup_canisters.json` | Created only if optional backup IDs are recorded |
-| `requirements.txt` | Python dependency for YouTube metadata inspection |
-| `.gitignore` | Excludes local backups, DFX build output, and optional local backup IDs |
+| `backend/main.mo` | Generated Motoko backend, including video library, analytics, vetKeys integration, and optional ticket methods |
+| `assets/script.js` | Generated browser-side application logic, canister connection, consent handling, analytics display, tutorial search, and ticket UI |
+| `dfx.json` | DFX canister and network configuration |
+| `canister_ids.json` | Canister ID mapping/configuration |
+| `mops.toml` | Motoko package configuration |
+| `package.json` | JavaScript package/dependency metadata |
+| `video_library_import.json` | YouTube metadata prepared for manual/separate canister seeding, when extraction succeeds |
+| `backup_canisters.json` | Optional local record of two existing backup canister IDs; created only by `--configure-backups` |
+| `requirements.txt` | Python dependency declarations supplied with the repository |
+| `LICENSE` | MIT license text |
+
+The wizard may update or create configuration files as part of its run. Review the actual generated files in your checkout rather than assuming every optional file will always be present.
+
+## Image assets
+
+The repository's `assets/images/` directory contains the starter project's profile, social, cryptocurrency, and Open Graph image assets. The wizard prompts you to check that these assets are present; it does not create a replacement profile image.
+
+To use your own profile photo, replace the expected profile image while preserving the filename used by your HTML template, or update the template's image path. Check the icon filenames and paths before changing them.
 
 ## Security and operational notes
 
-- Never publish private keys, recovery phrases, access tokens, or other secrets in this repository.
-- Treat `backup_canisters.json` as local infrastructure configuration; do not commit it unless you intentionally want those canister IDs public.
-- Canister IDs are not credentials, but public registration does not provide backup functionality.
-- The local ZIP is not a substitute for exporting or otherwise backing up important live canister data.
-- Test changes on a local replica or a disposable canister before upgrading a production canister.
+- Never commit private keys, recovery phrases, access tokens, or other secrets.
+- Treat `backup_canisters.json` as local infrastructure configuration. Do not commit it unless you deliberately intend to publish those canister IDs.
+- Canister IDs are identifiers, not backups or authentication credentials.
+- Analytics are retained for up to 30 days by the generated backend; ticket retention is separately configured in the wizard.
+- Analytics collection requires visitor consent in the generated frontend and is also checked by the backend.
+- Analytics queries and ticket/key-management operations are principal-restricted as described above.
+- The generated rate limits are basic abuse controls, not a complete denial-of-service defense.
+- vetKeys derivation consumes cycles. Monitor canister cycles and test the encryption/decryption flow before production use.
+- The YouTube metadata JSON is not automatically uploaded. Validate it and use a separate seeding workflow.
+- Test upgrades on a local replica or disposable canister before changing a production canister.
+- Keep your own source-code and deployment-configuration copies in a secure location. This setup wizard does not back up live canister stable memory or application data.
 
 ## License
 
