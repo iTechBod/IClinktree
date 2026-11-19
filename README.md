@@ -1,371 +1,418 @@
-🌐 IClinktree (Web3 Creator Hub) 
-
-<img width="114" height="20" alt="image" src="https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40" />
-<img width="82" height="20" alt="image" src="https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a" />
-
-IClinktree is an open-source creator-hub starter project for the Internet Computer (ICP). It includes a Python setup wizard, a generated Motoko backend, browser-side JavaScript for canister connectivity and creator tools, and a collection of image assets.
-
-* Network: Internet Computer mainnet (the generated configuration targets ICP; review it before deployment).
-* License: MIT (see LICENSE).
-* Repository: https://github.com/iTechBod/IClinktree
-* Setup language: English.
-* Analytics: First-party on-chain analytics. The setup wizard does not add Google Analytics or other third-party analytics tags.
-* AI integration: Generates ICP service-discovery assets for compatibility with DFINITY’s ICP MCP ecosystem, allowing authorized AI clients to discover and interact with supported canister methods.
-
-Important source-layout note: The setup wizard generates backend/main.mo, assets/script.js, DFX configuration, Motoko package configuration, JavaScript package configuration, and ICP MCP discovery assets. It does not generate the HTML/CSS page templates. A working deployment also needs the frontend files expected by the generated JavaScript, including assets/index.html and assets/styles.css, plus the image assets referenced by that page. The wizard prepares YouTube metadata for import but does not automatically upload it to the canister. A successful setup run is not proof that the project has built or deployed successfully.
-
-Features
-
-Creator hub and profile configuration
-
-* Creator name and biography/subtitle configuration.
-* Social profile links for YouTube, OpenChat, Telegram, X, Instagram, Facebook, Discord, GitHub, TikTok, Truth Social, Tumblr, and Bluesky.
-* Optional fallback to the starter project’s default social links for fields left blank.
-* ICP ecosystem dApp referral links for OpenChat, Clown, Oisy, and Randseed, with optional starter-project fallback links.
-* Cryptocurrency address configuration and display support for configured assets.
-* Creator-facing frontend JavaScript scaffold and canister connection logic.
-* Internet Identity integration for owner authentication and protected dashboard functionality.
-
-AI integration through ICP MCP
-
-IClinktree generates the service-discovery configuration required for integration with DFINITY’s ICP MCP ecosystem.
-
-This allows compatible AI clients, including supported Claude and ChatGPT MCP integrations, to discover the application’s frontend and backend canisters and access documented functionality.
-
-Generated discovery assets
-
-The setup wizard creates:
-
-assets/
-├── .well-known/
-│   └── ic-architecture
-└── .ic-assets.json5
-
-assets/.well-known/ic-architecture
-
-Contains the application’s service-discovery manifest, including:
-
-* Frontend canister ID.
-* Backend canister ID.
-* Canister names and roles.
-* Descriptions of the available application services.
-* Information about public and authenticated backend functionality.
-
-assets/.ic-assets.json5
-
-Configures the legacy DFX asset canister to include the hidden .well-known directory when deploying the frontend.
-
-It also configures the correct JSON content type for the extensionless ic-architecture manifest.
-
-Without this configuration, the asset canister may omit the hidden discovery directory.
-
-AI-accessible backend methods
-
-The generated backend includes a documentation method:
-
-getApiDoc()
-
-This method describes the backend API, its read methods, owner identity requirements, and security restrictions.
-
-The documented methods include:
-
-Method	Access	Purpose
-getApiDoc()	Public read	Explains available API functionality and permissions.
-getAllVideos()	Public read	Retrieves the creator’s video library.
-getTrafficStats()	Owner/publisher only	Retrieves protected website analytics.
-getMyPrincipal()	Public query	Returns the caller’s Internet Computer principal.
-
-The backend also has protected management methods, including video-library management and ticket/key-management operations.
-
-These are not intended to be exposed as unrestricted AI operations.
-
-Owner authentication with Internet Identity
-
-The setup wizard asks for a Master/Owner Principal ID.
-
-This principal is used by the generated backend to protect owner-specific functionality.
-
-For AI access to private owner data:
-
-1. Deploy the generated frontend and backend.
-2. Make the discovery manifest publicly accessible through the deployed frontend.
-3. Configure a compatible AI client to use DFINITY’s ICP MCP integration.
-4. Authenticate using the owner’s Internet Identity.
-5. Authorize the requested access.
-6. Ask the AI to retrieve supported information from the backend.
-
-Important Internet Identity consideration:
-
-Internet Identity generates application-specific principals based on the application origin.
-
-The principal used by the AI connector must match the configured owner principal.
-
-Use the same canonical frontend origin that was used when registering or obtaining the owner’s application-specific principal. Using a different domain or frontend origin may produce a different principal and cause owner authorization to fail.
-
-Example AI queries
-
-After successful authentication and authorization, the owner can ask supported AI clients questions such as:
-
-* How many visitors did my website receive?
-* Which countries generate the most traffic?
-* What are my most popular tutorials?
-* Show me my website’s traffic statistics.
-* Retrieve my video library.
-* Analyze the available creator-hub data.
-* Explain my backend API and its available functionality.
-
-The AI can only retrieve information exposed by the backend and permitted to the authenticated principal.
-
-Permissions and security
-
-* Public video-library queries remain publicly accessible.
-* Traffic analytics require the configured owner or publisher principal.
-* Ticket and key-management operations remain access-controlled.
-* The AI connector should use read-only or Questions-only permissions when the owner only needs data retrieval.
-* Do not authorize state-changing operations unless they are explicitly required and reviewed.
-* Never expose private keys, recovery phrases, vetKeys material, or authentication secrets to an AI client.
-
-Important: Generating the discovery manifest does not automatically connect Claude or ChatGPT, create an Internet Identity session, or grant permissions. The owner must configure a compatible MCP client and complete its authentication and authorization process.
-
-Publishing the discovery manifest also opts the application into DFINITY’s ICP MCP ecosystem and constitutes acceptance of the applicable App Operator Terms. Review those terms before deployment.
-
-Documentation:
-
-* https://docs.internetcomputer.org/guides/frontends/service-discoverability/
-* https://internetcomputer.org/icp-mcp/
-
-30-day on-chain traffic analytics
-
-The generated backend retains eligible analytics events for a rolling 30-day window and periodically prunes older records.
-
-The generated analytics view can report:
-
-* Pageviews during the retention window.
-* Unique visitor/device identifiers.
-* Button/link click totals and most-clicked links.
-* Daily pageview counts across the 30-day window, including the daily total and peak day in the frontend display.
-* Top countries, device types, and browsers.
-* Most frequent tutorial searches.
-* Searches that returned no matching videos.
-
-Analytics access is restricted in the backend to the configured owner and publisher principals. Other callers do not receive the analytics result.
-
-Analytics can also be retrieved by a properly authenticated AI client through the ICP MCP integration.
-
-Visitor consent and collection
-
-* The generated frontend presents a traffic-consent choice and stores the choice in browser local storage.
-* The browser sends analytics events only when the visitor has accepted.
-* The backend independently rejects events unless the consent value is accepted.
-* Visitors who do not accept are not included in the analytics event log.
-* The backend validates the lengths of submitted fields and applies a global request-throttling mechanism to reduce event flooding.
-* Analytics data is stored in the application canister; it is not sent to Google Analytics by this setup wizard.
-
-The analytics system is first-party application functionality, not a replacement for a formal privacy notice or a legal compliance review. Explain the collection and retention practices to visitors in your own privacy notice.
-
-Encrypted visitor tickets and messaging
-
-* Optional encrypted visitor ticket/messaging feature.
-* Ticket payload encryption/decryption support using the Internet Computer vetKeys SDK.
-* Ticket management methods for the configured owner.
-* Owner-side inbox actions include viewing, marking read/unread, archiving, and deleting tickets, including clearing the inbox.
-* Ticket retention is configurable in the setup wizard from 1 to 3,650 days; the default is 7 days.
-* The backend periodically prunes expired tickets.
-* Ticket storage and management methods are omitted from the generated backend when the ticket feature is disabled.
-
-The setup wizard asks for a Master/Owner Principal ID. The terminal’s active DFX identity is used as the publisher principal when it can be read; otherwise, the owner principal is used as the publisher fallback.
-
-Review both generated principal values before deployment.
-
-vetKeys controls
-
-* Uses the Internet Computer vetKeys interface for the ticket-encryption key workflow.
-* Restricts key derivation to the configured owner and publisher principals.
-* Applies a five-second minimum interval between key-derivation requests.
-* Validates the submitted transport public-key size.
-* The generated backend adds cycles to the vetKD derivation call; ensure the canister has sufficient cycles and test the workflow on a non-production canister first.
-
-Video library and tutorial search
-
-* Generated Motoko video-library storage and search methods.
-* askBot searches the seeded video library and returns matching tutorial records.
-* Search matching includes title, description, and searchableText.
-* Includes a small synonym map for selected Apple, crypto, and ICP-related terms.
-* Authorized owner/publisher methods support seeding and clearing the video library.
-* Public query access to the video-library records is exposed by the generated backend.
-* getAllVideos() provides a public read-only method for retrieving the video library.
-* AI clients can use the public video-library query when supported by their ICP MCP integration.
-
-YouTube metadata import preparation
-
-The wizard can inspect the configured YouTube channel/videos URL using yt-dlp and write normalized records to:
-
-video_library_import.json
-
-Each record contains a title, video URL, description, searchable text, and timestamp.
-
-This step:
-
-* Does not download the video files.
-* Does not upload the records to the canister.
-* Does not automatically call seedVideos.
-
-Use a separate, reviewed seeding workflow to import the JSON records into the deployed backend. Install yt-dlp as described below if you want the wizard to perform metadata extraction.
-
-Architecture and canister cost
-
-The standard website architecture uses two canisters:
-
-1. Backend canister — Motoko application logic, video library, analytics event storage, and (if enabled) encrypted visitor tickets.
-2. Frontend/website canister — serves the static website assets, including the ICP MCP discovery manifest.
-
-The ICP MCP integration does not require a separate AI canister.
-
-The wizard does not require two additional backup canisters. It does not create, deploy, synchronize, or restore backup canisters.
-
-Optional registration of existing backup canister IDs
-
-After your normal website deployment, you may optionally run:
-
-python3 setup.py --configure-backups
-
-This asks whether you want to record two existing backup canister IDs in:
-
-backup_canisters.json
-
-This is only local configuration. It does not:
-
-* Create or deploy backup canisters.
-* Install backup-vault code.
-* Copy live canister state.
-* Synchronize data between canisters.
-* Provide an automatic restore operation.
-
-Registering IDs does not itself create a backup or add a canister cost. Do not create or fund extra canisters on the assumption that this option provides automatic redundancy.
-
-Prerequisites
-
-Install and initialize:
-
-* DFINITY Canister SDK (dfx): https://internetcomputer.org/docs/building-apps/getting-started/install
-* Python 3.9 or newer
-* yt-dlp for YouTube playlist metadata extraction: python3 -m pip install yt-dlp
-* Motoko package manager (mops) if you use the generated mops.toml
-* A valid Internet Identity account for owner authentication.
-* A compatible MCP client and access to DFINITY’s ICP MCP integration if you intend to use AI-assisted canister access.
-
-Check your DFX installation and active identity:
-
-dfx --version
-dfx identity whoami
-dfx identity get-principal
-
-The active DFX identity is used as the publisher principal when available. Make sure the principals configured by the wizard have the intended permissions on the canisters.
-
-Quick start
-
-git clone https://github.com/iTechBod/IClinktree.git
-cd IClinktree
-python3 setup.py
-
-If you want YouTube metadata extraction, install yt-dlp first:
-
-python3 -m pip install yt-dlp
-
-The wizard prompts for:
-
-1. Owner/Master Principal ID.
-2. Whether to enable encrypted visitor tickets.
-3. Ticket retention period, if tickets are enabled.
-4. Creator name, biography, and YouTube channel/videos URL.
-5. Social media links and whether to use fallback links for blank fields.
-6. ICP ecosystem dApp referral links and optional fallback links.
-7. Cryptocurrency address configuration.
-8. Existing frontend and backend canister IDs and other deployment configuration requested by the wizard.
-9. Confirmation that the relevant canister controller permissions and image assets have been checked.
-
-The wizard also generates:
-
-* ICP MCP service-discovery manifest.
-* Legacy asset-canister configuration for serving the discovery manifest.
-* Backend API documentation for compatible AI clients.
-
-Review every generated file and configured principal before building or deploying.
-
-Before deploying
-
-1. Confirm that the required frontend template files exist. The setup wizard does not create assets/index.html or assets/styles.css.
-2. Confirm that all image files referenced by the frontend are present in assets/images/.
-3. Review backend/main.mo, especially owner/publisher authorization, ticket settings, analytics retention, and vetKeys calls.
-4. Review assets/script.js, including the consent interface, canister IDs, and frontend behavior.
-5. Inspect assets/.well-known/ic-architecture and confirm that both canister IDs and descriptions are correct.
-6. Confirm that assets/.ic-assets.json5 includes the discovery manifest and that the frontend asset canister will serve it correctly.
-7. Confirm that your deploying DFX identity has the required controller permissions for both the backend and frontend canisters.
-8. Confirm that the generated canister IDs and network settings are correct.
-9. Review DFINITY’s applicable ICP MCP App Operator Terms before publishing the discovery manifest.
-10. Build and test before upgrading or deploying to production.
-
-Example commands, once the complete frontend templates and project files are present:
-
-mops install
-dfx build --network ic
-dfx deploy --network ic
-
-After deployment, verify that the discovery manifest is publicly accessible at:
-
+# 🌐 IClinktree --- Web3 Creator Hub
+
+A personal, Internet Computer (ICP)-hosted creator hub for **TechBod**.
+IClinktree brings creator links, a searchable YouTube video library,
+visitor analytics, encrypted visitor messages, and optional AI-agent
+discovery into one self-hosted application.
+
+The project is generated by the interactive `setup.py` wizard. It
+creates the frontend assets and a Motoko backend configured with the
+values and features selected during setup.
+
+------------------------------------------------------------------------
+
+## ✨ Features
+
+-   **Creator homepage:** a custom HTML, CSS, and JavaScript experience
+    hosted on the Internet Computer.
+-   **YouTube video library:** store video metadata in the backend and
+    present it through the website.
+-   **Video search and assistant:** search the library with `askBot()`
+    and return relevant video records.
+-   **Visitor analytics:** consent-aware visit logging and
+    owner/publisher-only analytics, including the latest 30 days of
+    daily page-view counts, top pages, devices, browsers, countries, and
+    search activity.
+-   **Visitor consent:** visitors can choose whether traffic analytics
+    are recorded. The frontend stores the choice locally and sends the
+    consent state with visit events.
+-   **Encrypted visitor tickets:** an optional visitor messaging/ticket
+    system. Tickets are encrypted, can be decrypted by the authorized
+    owner workflow, and are automatically removed according to the
+    configured retention period.
+-   **vetKeys-based encryption:** uses the Internet Computer vetKeys
+    flow for protected ticket data and key handling.
+-   **AI / ICP MCP discovery:** generates a
+    `.well-known/ic-architecture` manifest and API documentation so
+    compatible ICP-aware AI tools can discover the canister architecture
+    and understand available methods.
+-   **Internet Identity access control:** sensitive analytics, ticket,
+    and management operations are restricted to the configured
+    owner/publisher principal.
+-   **Optional backup references:** optionally records IDs of two
+    existing backup canisters for a manual backup workflow. This does
+    not create or synchronize backup canisters.
+
+------------------------------------------------------------------------
+
+## 🧠 AI integration through ICP MCP
+
+The setup wizard generates discovery information for the Internet
+Computer MCP ecosystem.
+
+### Generated discovery files
+
+  --------------------------------------------------------------------------
+  File                                   Purpose
+  -------------------------------------- -----------------------------------
+  `assets/.well-known/ic-architecture`   Describes the frontend and backend
+                                         canisters, their roles, and the API
+                                         documentation entry point.
+
+  `assets/.ic-assets.json5`              Configures asset serving so the
+                                         extensionless discovery manifest is
+                                         served as JSON and the
+                                         `.well-known` path is included in
+                                         the deployed assets.
+  --------------------------------------------------------------------------
+
+After deployment, the manifest should be reachable at:
+
+``` text
 https://YOUR-FRONTEND-CANISTER-ID.icp0.io/.well-known/ic-architecture
+```
 
-Confirm that the returned document contains the correct frontend and backend canister IDs.
+Replace `YOUR-FRONTEND-CANISTER-ID` with the actual frontend canister
+ID.
 
-For AI integration, configure a compatible client using DFINITY’s ICP MCP service and complete the owner’s Internet Identity authentication and authorization.
+### Backend API discovery
 
-These are example deployment commands. The current setup.py generates project files but does not run dfx build or dfx deploy, and it does not guarantee that the supplied project is deployable without the missing frontend templates.
+The generated backend exposes public read-only discovery methods:
 
-Generated and supporting files
+-   `getApiDoc()` --- describes the API, access boundaries, and
+    authentication expectations.
+-   `getAllVideos()` --- returns the public video-library records.
+-   `askBot(searchQuery)` --- searches the video library and returns
+    relevant results.
 
-File	Purpose
-backend/main.mo	Generated Motoko backend, including video library, analytics, vetKeys integration, optional ticket methods, and AI-readable API documentation
-assets/script.js	Generated browser-side application logic, canister connection, consent handling, analytics display, tutorial search, and ticket UI
-assets/.well-known/ic-architecture	ICP MCP service-discovery manifest describing the frontend and backend canisters
-assets/.ic-assets.json5	Configures the legacy asset canister to include and correctly serve the hidden discovery manifest
-dfx.json	DFX canister and network configuration
-canister_ids.json	Canister ID mapping/configuration
-mops.toml	Motoko package configuration
-package.json	JavaScript package/dependency metadata
-video_library_import.json	YouTube metadata prepared for manual/separate canister seeding, when extraction succeeds
-backup_canisters.json	Optional local record of two existing backup canister IDs; created only by --configure-backups
-requirements.txt	Python dependency declarations supplied with the repository
-LICENSE	MIT license text
+The API documentation also explains that:
 
-The wizard may update or create configuration files as part of its run. Review the actual generated files in your checkout rather than assuming every optional file will always be present.
+-   `getTrafficStats()` is restricted to the configured owner/publisher
+    principal and returns no analytics to other principals.
+-   The caller's Internet Identity principal must match the principal
+    configured for the relevant application origin.
+-   Ticket/key-management and library-management methods are
+    access-controlled and must not be exposed to untrusted callers.
+-   AI integrations should use read-only or Questions-only access where
+    the client offers permission controls.
 
-Image assets
+### Important authentication and compatibility notes
 
-The repository’s assets/images/ directory contains the starter project’s profile, social, cryptocurrency, and Open Graph image assets. The wizard prompts you to check that these assets are present; it does not create a replacement profile image.
+Generating the discovery manifest **does not install or configure an MCP
+connector** in ChatGPT, Claude, or another AI client. The client must
+independently support the relevant ICP MCP workflow, discover the
+deployed manifest, and be configured by the user.
 
-To use your own profile photo, replace the expected profile image while preserving the filename used by your HTML template, or update the template’s image path. Check the icon filenames and paths before changing them.
+The setup script does not implement a general OAuth flow or grant an AI
+service access to private data. Protected methods continue to enforce
+their own principal checks.
 
-Security and operational notes
+Internet Identity principals can be origin-specific. Use the same
+canonical frontend origin for authentication that you use when accessing
+the application; signing in from a different origin may result in a
+different principal.
 
-* Never commit private keys, recovery phrases, access tokens, or other secrets.
-* Treat backup_canisters.json as local infrastructure configuration. Do not commit it unless you deliberately intend to publish those canister IDs.
-* Canister IDs are identifiers, not backups or authentication credentials.
-* Analytics are retained for up to 30 days by the generated backend; ticket retention is separately configured in the wizard.
-* Analytics collection requires visitor consent in the generated frontend and is also checked by the backend.
-* Analytics queries and ticket/key-management operations are principal-restricted as described above.
-* The generated rate limits are basic abuse controls, not a complete denial-of-service defense.
-* vetKeys derivation consumes cycles. Monitor canister cycles and test the encryption/decryption flow before production use.
-* The YouTube metadata JSON is not automatically uploaded. Validate it and use a separate seeding workflow.
-* The ICP MCP discovery manifest makes service information publicly discoverable; it does not make private backend data public by itself.
-* Owner-only analytics access depends on the caller’s principal matching the configured owner or publisher principal.
-* Internet Identity application-specific principals can differ across frontend origins. Use the same canonical origin when authenticating through the AI connector.
-* Prefer read-only AI permissions for analytics and data retrieval. Review any requested state-changing permissions carefully.
-* Publishing the discovery manifest constitutes acceptance of the applicable DFINITY App Operator Terms.
-* Test upgrades on a local replica or disposable canister before changing a production canister.
-* Keep your own source-code and deployment-configuration copies in a secure location. This setup wizard does not back up live canister stable memory or application data.
+Publishing the discovery manifest opts the project into the DFINITY MCP
+discovery ecosystem and indicates acceptance of the applicable DFINITY
+App Operator Terms. Review the current terms before deploying the
+manifest.
 
-License
+------------------------------------------------------------------------
 
-IClinktree is distributed under the MIT License. See LICENSE.
+## 🏗️ Architecture
 
-Built with passion on the Internet Computer Protocol.
+IClinktree consists of:
+
+-   **Frontend:** generated HTML, CSS, and JavaScript under `assets/`.
+-   **Backend:** a Motoko canister generated under `backend/`.
+-   **Internet Identity:** user authentication for owner-protected
+    operations.
+-   **Internet Computer asset canister:** serves the frontend and its
+    discovery manifest.
+-   **Optional AI discovery:** the `.well-known/ic-architecture`
+    manifest points compatible clients toward the canister architecture
+    and API documentation.
+
+The frontend communicates with the backend through the Internet Computer
+agent and generated Candid interface definitions.
+
+------------------------------------------------------------------------
+
+## 🚀 Quick start
+
+### 1. Prerequisites
+
+Install and configure:
+
+-   Python 3
+-   DFINITY Canister SDK (`dfx`)
+-   Mops, for Motoko package management
+-   Node.js and npm, if required by your local build workflow
+-   An Internet Identity principal for owner access
+
+You will also need an Internet Computer identity configured in `dfx`
+before deploying.
+
+### 2. Run the setup wizard
+
+From the project directory:
+
+``` bash
+python3 setup.py
+```
+
+Follow the prompts to configure your creator profile, canister details,
+owner principal, and optional features.
+
+The wizard generates the project files using your selected
+configuration.
+
+### 3. Review the generated configuration
+
+Before deployment, inspect the generated files and confirm:
+
+-   The frontend and backend canister IDs are correct.
+-   The owner/master principal is correct.
+-   Ticket functionality and retention settings match your requirements.
+-   Any optional backup canister IDs are correct.
+-   The generated `.well-known/ic-architecture` manifest describes the
+    intended canisters.
+
+### 4. Build and deploy
+
+Use the commands and workflow appropriate to your local `dfx` project
+configuration. A typical deployment sequence is:
+
+``` bash
+dfx start --background
+dfx canister create --all
+dfx build
+dfx deploy
+```
+
+If your canisters already exist or are managed through another
+deployment workflow, do not recreate them unnecessarily. Verify the
+active network and canister IDs before running deployment commands.
+
+### 5. Verify the deployment
+
+After deployment:
+
+1.  Open the frontend canister URL.
+2.  Test the public video library and search.
+3.  Sign in with Internet Identity using the canonical frontend origin.
+4.  Verify that owner-only analytics and ticket-management actions are
+    unavailable to unauthorized principals.
+5.  Check that the discovery manifest is served at
+    `/.well-known/ic-architecture`.
+6.  Read `getApiDoc()` and verify the documented methods and permission
+    boundaries.
+
+A successful local build or manifest generation does not, by itself,
+prove that an external MCP client can discover or authenticate to the
+deployed application.
+
+------------------------------------------------------------------------
+
+## 📊 Analytics and visitor consent
+
+The frontend asks visitors for an analytics consent choice. The choice
+is stored in browser local storage and is included with visit logging.
+
+The backend analytics query is protected:
+
+-   `getTrafficStats()` is available only to the configured
+    owner/publisher principal.
+-   Other principals receive no analytics result.
+-   The returned analytics include a rolling 30-day daily page-view
+    series and aggregated activity such as popular pages, devices,
+    browsers, countries, and search terms.
+
+Analytics data is generated from events received by the canister. It
+should not be interpreted as a guarantee that every visit is measured:
+browser settings, network conditions, consent choices, and blocked
+requests can affect collection.
+
+------------------------------------------------------------------------
+
+## 🔐 Encrypted visitor tickets
+
+The visitor ticket system can be enabled or disabled during setup.
+
+When enabled:
+
+-   Visitors can submit a message through the website's ticket
+    interface.
+-   Ticket data is stored in encrypted form.
+-   The owner workflow retrieves and decrypts tickets using the
+    configured vetKeys-based flow.
+-   The setup wizard lets you choose a retention period from **1 to
+    3,650 days**; the default is **7 days**.
+-   The backend applies ticket cleanup according to the configured
+    retention period.
+
+Keep the owner principal and any required key-access workflow secure. Do
+not expose ticket ciphertext, derived keys, or ticket-management methods
+to untrusted callers.
+
+When tickets are disabled, the setup script omits the ticket storage and
+management methods from the generated backend.
+
+------------------------------------------------------------------------
+
+## 🎬 Video library
+
+The video library stores metadata used by the frontend and search
+assistant.
+
+Relevant backend methods include:
+
+  -------------------------------------------------------------------------
+  Method                    Access                  Description
+  ------------------------- ----------------------- -----------------------
+  `getAllVideos()`          Public read             Returns the
+                                                    video-library records.
+
+  `askBot(searchQuery)`     Public read             Searches video titles,
+                                                    descriptions, and
+                                                    searchable text.
+
+  `seedVideos(newVideos)`   Owner/publisher         Adds or seeds video
+                                                    records.
+
+  `clearLibrary()`          Owner/publisher         Clears the video
+                                                    library.
+  -------------------------------------------------------------------------
+
+The management methods are protected by the configured owner/publisher
+principal. Do not treat public read access as permission to modify the
+library.
+
+------------------------------------------------------------------------
+
+## 🧰 Generated project files
+
+The setup wizard generates or configures project files, including:
+
+  --------------------------------------------------------------------------
+  Path                                   Description
+  -------------------------------------- -----------------------------------
+  `assets/index.html`                    Main creator-hub page.
+
+  `assets/styles.css`                    Frontend styling.
+
+  `assets/script.js`                     Frontend behavior, backend
+                                         integration, consent handling,
+                                         ticket UI, and related
+                                         functionality.
+
+  `assets/.well-known/ic-architecture`   ICP architecture discovery
+                                         manifest.
+
+  `assets/.ic-assets.json5`              Asset-serving configuration for the
+                                         discovery manifest.
+
+  `backend/main.mo`                      Generated Motoko backend.
+
+  `backup_canisters.json`                Optional local record of existing
+                                         backup canister IDs, if configured.
+  --------------------------------------------------------------------------
+
+The wizard does not generate an HTML/CSS template from scratch as a
+replacement for your custom frontend, and it does not automatically
+upload or synchronize your YouTube video metadata. Review and maintain
+your frontend and video-library content as part of your normal project
+workflow.
+
+------------------------------------------------------------------------
+
+## 💾 Optional backup canister references
+
+The wizard can optionally record two existing backup canister IDs in
+`backup_canisters.json`.
+
+This is only a local record for a manual backup workflow. It does
+**not**:
+
+-   Create additional canisters.
+-   Deploy backup code.
+-   Copy or replicate canister state.
+-   Synchronize data between canisters.
+-   Automatically restore the application if a canister runs out of
+    cycles or becomes unavailable.
+
+Keep your source code and deployment configuration backed up separately.
+The local source archive is a backup of project files; canister IDs
+alone are not a backup of canister state.
+
+------------------------------------------------------------------------
+
+## 🛡️ Security considerations
+
+-   Protect the Internet Identity principal configured as
+    owner/publisher.
+-   Keep sensitive management methods access-controlled.
+-   Do not expose ticket ciphertext, derived keys, or private
+    ticket-management operations to untrusted AI clients or users.
+-   Prefer read-only / Questions-only permissions for AI integrations
+    when available.
+-   Remember that public methods such as `getAllVideos()` expose their
+    returned video-library data to anyone.
+-   Test access control using both the owner principal and a separate,
+    unauthorized principal.
+-   Use a consistent canonical frontend origin for Internet Identity
+    authentication.
+-   Review the generated code and current DFINITY terms before
+    publishing the MCP discovery manifest.
+-   Monitor canister cycles and maintain independent source-code
+    backups.
+
+------------------------------------------------------------------------
+
+## 🔗 Useful resources
+
+-   [Internet Computer documentation](https://internetcomputer.org/docs)
+-   [DFX
+    documentation](https://internetcomputer.org/docs/building-apps/getting-started/install)
+-   [Internet Identity](https://identity.ic0.app/)
+-   [Mops package manager](https://mops.one/)
+-   [ICP MCP](https://mcp.internetcomputer.org/)
+
+------------------------------------------------------------------------
+
+## 📌 Project notes
+
+-   Project: **IClinktree --- Web3 Creator Hub**
+-   Brand: **TechBod**
+-   Hosting: **Internet Computer**
+-   Frontend: **HTML / CSS / JavaScript**
+-   Backend: **Motoko**
+-   Authentication: **Internet Identity**
+-   Optional capabilities: **encrypted visitor tickets, analytics, and
+    ICP MCP discovery**
+
+------------------------------------------------------------------------
+
+## ⚠️ Deployment checklist
+
+Before considering a release complete, confirm:
+
+-   [ ] The frontend and backend build successfully.
+-   [ ] The deployed canister IDs match the generated configuration.
+-   [ ] The homepage, links, and video library work.
+-   [ ] Video search returns relevant results.
+-   [ ] Analytics consent behavior works as intended.
+-   [ ] Owner-only analytics are inaccessible to unauthorized
+    principals.
+-   [ ] Ticket submission, owner retrieval, decryption, and retention
+    cleanup work if tickets are enabled.
+-   [ ] Ticket and library-management methods enforce the intended
+    authorization.
+-   [ ] The `.well-known/ic-architecture` manifest is reachable from the
+    deployed frontend origin.
+-   [ ] `getApiDoc()` accurately describes the deployed API.
+-   [ ] Any external MCP client has been separately configured and
+    tested; manifest generation alone is not an end-to-end integration
+    test.
+-   [ ] Source code and deployment configuration are backed up
+    independently.
