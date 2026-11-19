@@ -2,119 +2,139 @@
 <img width="114" height="20" alt="image" src="https://github.com/user-attachments/assets/577c08d5-74e0-41a3-a19e-754bfccf8f40" />
 <img width="82" height="20" alt="image" src="https://github.com/user-attachments/assets/b11dce54-35e6-4537-8bcf-85b25bcb2c6a" />
 
-Platform: $ICP (Internet Computer Protocol)
-License: MIT
-Live Mainnet Canister: https://2n2uw-uaaaa-aaaag-at2hq-cai.icp.net
 
-IClinktree is a lightning-fast, fully decentralized, and self-hosted Creator Hub & AI-Powered Video Knowledge Base running 100% on-chain on the Internet Computer Protocol (ICP).
+IClinktree is an open-source creator-hub starter project for the Internet Computer (ICP). It includes a Python setup wizard, a Motoko backend generator, browser-side JavaScript for the canister connection and creator tools, and a collection of image assets.
 
-Say goodbye to centralized link-in-bio services. With IClinktree, you own your data entirely: your analytics are logged privately on-chain, supporters can tip you in multiple cryptocurrencies via dynamic QR codes, visitors can query your entire YouTube video history using an on-chain AI assistant, and fans can send end-to-end encrypted direct messages/tickets straight to your canister inbox.
+- **Network:** Internet Computer mainnet
+- **License:** MIT (see [`LICENSE`](LICENSE))
+- **Repository:** https://github.com/iTechBod/IClinktree
+- **Language:** English setup flow (no Persian-language setup mode)
+- **Third-party analytics tags:** None are added by this setup wizard.
 
-✨ Key Features
+> **Important repository note:** The source archive supplied for this update contains `setup.py`, `README.md`, `LICENSE`, and `assets/images/`. It does not contain `assets/index.html`, `assets/styles.css`, or a `push.py` uploader. The wizard generates `backend/main.mo`, `assets/script.js`, and the DFX/package configuration, but it does not generate the missing HTML/CSS template or upload the scraped YouTube entries. A complete website deployment therefore requires those frontend template files and a video-seeding workflow to be supplied separately. Do not interpret a successful setup.py run as proof that the website has been deployed.
 
-⚬ ⚡ 100% On-Chain Deployment: Hosted directly on Internet Computer canister smart contracts—no traditional cloud servers (AWS, Vercel, Heroku) required.
+## Features represented by the current setup generator
 
+- Motoko backend scaffold with video-search methods, traffic-event storage, and an encrypted visitor-ticket interface.
+- Browser JavaScript scaffold for Internet Identity authentication, canister calls, ticket handling, traffic statistics, tutorial search, and crypto-address display.
+- Config generation for `dfx.json`, `canister_ids.json`, `mops.toml`, and `package.json`.
+- Creator profile, social-link, dApp referral, and cryptocurrency-address prompts.
+- YouTube playlist metadata inspection through `yt-dlp` (the current wizard does not upload those entries to the canister).
+- Local source/configuration ZIP backup after setup generation.
+- Optional recording of two already-existing backup canister IDs after the website has been deployed.
 
-⚬ 🤖 On-Chain AI Assistant & Search: Integrated chat widget powered by your Motoko backend that instantly indexes and retrieves relevant YouTube tutorials based on user queries.
+## Architecture and canister cost
 
+The standard deployment uses **two canisters**:
 
-⚬ 🔒 End-to-End Encrypted Visitor Ticket System: Allows visitors to send anonymous encrypted notes/tickets via the chat interface (e.g., typing ticket Can you cover Oisy wallet?). Messages are encrypted locally in the browser using AES-GCM Web Crypto before submission, ensuring zero-knowledge storage on-chain. Protected by Internet Identity authentication so only the master owner principal can decrypt and read inbox messages.
+1. **Backend** — Motoko application logic and on-chain data.
+2. **Website** — static frontend assets.
 
+The two optional backup canister IDs are **not required**. The setup wizard does not create or deploy them, and it does not install backup-vault code, automatically copy canister state, synchronize data, or provide a restore operation. It only records IDs supplied by the user in a local `backup_canisters.json` file for a future/manual workflow. Do not pay for extra canisters on the assumption that ID registration itself creates a backup.
 
-⚬ ⏳ Customizable Ticket Retention & Auto-Pruning: Set your preferred auto-deletion lifespan for incoming encrypted tickets during setup to optimize canister cycles and storage.
+The wizard also creates a local ZIP archive of the project files in `local_backups/`. This is a **source-code/configuration backup**, not a backup of live canister stable memory, visitor tickets, analytics, or other on-chain state. Keep a copy somewhere separate from your computer.
 
+## Prerequisites
 
-⚬ 📊 Privacy-First Live 7-Day Analytics: Tracks rolling visitor stats (pageviews, unique devices, button clicks, top country, device/OS, and browser) on-chain with automatic 7-day data pruning and zero third-party cookies.
+Install and initialize:
 
+- DFINITY Canister SDK (`dfx`): https://internetcomputer.org/docs/building-apps/getting-started/install
+- Python 3.9 or newer
+- `yt-dlp`: `python3 -m pip install yt-dlp`
+- Motoko package manager (`mops`) if you use the generated `mops.toml`
 
-⚬ ☕ Multi-Chain Crypto Tipping: Interactive "Buy Me a Coffee" modal featuring reliable, high-speed generated QR codes for ICP, BTC, ETH, SOL, and XRP with customizable wallet addresses and developer support fallbacks.
+Check that DFX is available:
 
-
-⚬ 🚀 Automated Setup & Deployment Wizard (setup.py): Interactive Python script that scaffolds your workspace, configures profiles, maps your Master Principal ID, configures encrypted ticket parameters, scrapes YouTube, and deploys to ICP mainnet.
-
-
-⚬ 🔗 Dynamic ICP Ecosystem & dApp Referrals: Integrated filter tabs and dedicated cards for top ICP dApps (OpenChat, Clown, Oisy, Randseed) with customizable referral support. If unused, the section dynamically hides itself.
-
-
-🏗️ Project Architecture
-```text
-IClinktree/
-├── backend/
-│   └── main.mo           # Motoko smart contract (Search index, AI assistant, traffic logs, & encrypted ticket store)
-├── assets/
-│   ├── index.html        # Apple-inspired glassmorphism frontend (Dynamically rendered)
-│   ├── styles.css        # Clean minimalist dark-mode styling & responsive grid layouts
-│   ├── script.js         # Frontend router, Web Crypto E2EE handler, crypto modal, analytics logger, & II auth
-│   └── images/           # Social media icons, profile photo, crypto logos, and dApp badges
-├── setup.py              # Interactive Python configuration & mainnet deployment wizard
-├── push.py               # Automated YouTube scraper & canister synchronization script
-├── dfx.json              # DFINITY SDK canister compilation and network configuration
-└── canister_ids.json     # Mainnet/local canister ID registry mapping
+```bash
+dfx --version
+dfx identity whoami
+dfx identity get-principal
 ```
 
-💡 How It Works
+## Quick start
 
-1. AI Assistant & Keyword Search Engine (backend/main.mo)
-
-⚬ Indexing: When you run push.py, your YouTube channel's public playlist is scraped using yt-dlp. Every video's title, description, and tags are cleaned, lowercased, and combined into a searchable index string.
-⚬ Batch Uploading: Video records are chunked and pushed securely onto your Motoko backend canister via Candid interface calls.
-⚬ Smart Synonym Mapping: The backend features a built-in dictionary (mapping keywords like "apple" to "mac", "macbook", "iphone", "ios", or "crypto" to "bitcoin", "ethereum", "blockchain").
-⚬ Query Execution: When a visitor types a query into the chat widget, types traffic for live metrics, or types ticket <message> to send feedback, the frontend routes requests directly to canister endpoints (askBot, getTrafficStats, or submitTicket).
-
-2. End-to-End Encrypted Ticket & Inbox Manager
-
-⚬ Client-Side Encryption: When a visitor submits a note by typing ticket <your message>, the browser locally generates an AES-GCM encryption key, encrypts the message text in real-time, and sends only ciphertext to the canister.
-⚬ On-Chain Zero-Knowledge Storage: The canister stores ciphertext payloads in stable memory. Node operators and state inspectors see only unreadable encrypted data.
-⚬ Authenticated Decryption: Creators login securely using Internet Identity (II). The canister checks that the caller matches your Master Principal ID (OWNER principal). Upon authorization, the frontend fetches the ciphertext and decrypts it directly in your browser screen.
-⚬ Inbox Commands: Once authenticated, typing show tickets or show unread in the chat displays your decrypted messages with actions to toggle read status, delete single tickets, or batch clear the inbox.
-
-3. Automated Setup Wizard (setup.py)
-
-Instead of manually editing JSON files or writing Candid arguments, setup.py guides you through an interactive terminal wizard:
-
-⚬ Master Principal & II Mapping: Prompts for your Master Principal ID (PID) so only your authenticated principal can decrypt and view the ticket inbox.
-⚬ Encrypted Ticket Preferences: Lets you choose whether to enable tickets and configure how many days the canister retains them before automatic deletion.
-⚬ Principal Detection: Runs dfx identity get-principal to fetch your DFINITY Principal ID and reminds you to assign controller permissions in the NNS.
-⚬ Profile Personalization: Prompts for your display name, bio, and YouTube channel URL.
-⚬ Social & Crypto Configuration: Collects social profile links and custom cryptocurrency wallet addresses (ICP, BTC, ETH, SOL, XRP) with developer fallback options.
-⚬ Scaffolding & Deployment: Auto-generates your directory tree, builds configuration files with Web Crypto handlers, executes push.py to seed video metadata, and deploys live via dfx deploy --network ic.
-
-🚀 Deployment Guide
-
-Prerequisites
-
-Make sure your environment (macOS / Linux / WSL) has the following installed:
-
-⚬ DFX SDK / ICP CLI: https://cli.internetcomputer.org/
-⚬ Python 3 and yt-dlp: pip install yt-dlp
-
-Step 1: Clone the Repository
-```text
+```bash
 git clone https://github.com/iTechBod/IClinktree.git
 cd IClinktree
-```
-
-Step 2: Run the Setup Wizard
-
-Execute the setup script:
-```text
+python3 -m pip install -r requirements.txt
 python3 setup.py
 ```
 
-Follow the prompts in your terminal:
+The wizard asks for the owner principal, ticket-retention preference, creator profile, social links, dApp referrals, crypto addresses, and existing frontend/backend canister IDs. It then writes the generated configuration and source files and creates a timestamped local source backup under `local_backups/`.
 
-1. Enter your Master Principal ID (PID) for secure owner ticket decryption.
-2. Choose whether to enable the encrypted ticket system and specify auto-deletion retention days (e.g., 7 days).
-3. Verify your DFINITY Principal ID and confirm canister ownership in the NNS.
-4. Enter your custom Creator Name, Bio, and YouTube URL.
-5. Provide your social media profile links and dApp referrals (or use developer fallbacks).
-6. Set up your custom crypto wallet addresses.
-7. Input your Backend and Frontend Canister IDs.
+### Before deploying
 
-The script will automatically build all configuration files, sync your YouTube catalog, upload metadata on-chain, and deploy your creator hub live to the Internet Computer mainnet!
+1. Review the generated `backend/main.mo` and `assets/script.js`.
+2. Confirm that the required frontend files exist. In this repository snapshot, `assets/index.html` and `assets/styles.css` are not included and must be added before deploying a working website.
+3. Confirm that the backend and website canisters exist and that your deploying DFX identity has the required controller permissions.
+4. Review the generated canister IDs and network configuration.
+5. Build and deploy using your own verified DFX workflow. The current `setup.py` does **not** run `dfx deploy`.
 
-📜 License
+Example commands, after the missing frontend template and all required project files have been supplied:
 
-Distributed under the MIT License. See LICENSE for more information. Feel free to fork, adapt for your creator brand, and build upon it!
+```bash
+mops install
+dfx build --network ic
+dfx deploy --network ic
+```
+
+These commands are examples, not a guarantee that the incomplete source archive is deployable as-is.
+
+## Optional backup canister IDs — after deployment
+
+Only after your normal website deployment is complete, you can run:
+
+```bash
+python3 setup.py --configure-backups
+```
+
+The wizard asks whether you want to record two existing backup canister IDs. If you answer yes, it writes:
+
+```text
+backup_canisters.json
+```
+
+If you answer no, the standard two-canister setup remains unchanged. The optional IDs are simply recorded locally; no extra canister is created, charged, deployed, or synchronized by this command.
+
+## Local source backup
+
+Every normal setup run creates an archive similar to:
+
+```text
+local_backups/iclinktree-source-YYYYMMDD-HHMMSS.zip
+```
+
+It includes project source/configuration and image assets while excluding `.git`, `.dfx`, `.mops`, virtual environments, dependency folders, and previous local backup archives. It does not include live canister state. Copy this ZIP to another drive or secure storage location.
+
+## Image assets
+
+The repository already includes an `assets/images/` directory with the current profile image, social icons, crypto icons, and `og-cover.png`. You do not need to add another OG cover just to run the setup generator. Replace the profile image with your own while preserving the filename expected by your frontend template, or update that template's image path. Review the social/crypto icon filenames before changing them.
+
+## Files generated by setup.py
+
+| File | Purpose |
+|---|---|
+| `backend/main.mo` | Generated Motoko backend source |
+| `assets/script.js` | Generated browser-side application logic |
+| `dfx.json` | DFX canister/network configuration |
+| `canister_ids.json` | Mainnet canister ID mapping |
+| `mops.toml` | Motoko dependencies |
+| `package.json` | JavaScript dependency metadata |
+| `local_backups/*.zip` | Local source/configuration snapshots |
+| `backup_canisters.json` | Created only if optional backup IDs are recorded |
+| `requirements.txt` | Python dependency for YouTube metadata inspection |
+| `.gitignore` | Excludes local backups, DFX build output, and optional local backup IDs |
+
+## Security and operational notes
+
+- Never publish private keys, recovery phrases, access tokens, or other secrets in this repository.
+- Treat `backup_canisters.json` as local infrastructure configuration; do not commit it unless you intentionally want those canister IDs public.
+- Canister IDs are not credentials, but public registration does not provide backup functionality.
+- The local ZIP is not a substitute for exporting or otherwise backing up important live canister data.
+- Test changes on a local replica or a disposable canister before upgrading a production canister.
+
+## License
+
+IClinktree is distributed under the MIT License. See [`LICENSE`](LICENSE).
 
 Built with passion on the Internet Computer Protocol.
