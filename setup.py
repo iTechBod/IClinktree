@@ -5,8 +5,6 @@ import subprocess
 import sys
 import time
 import argparse
-import zipfile
-from datetime import datetime
 
 def get_principal():
     try:
@@ -22,41 +20,6 @@ def sanitize(text):
     t = t.replace('"', '\\"')
     t = t.replace('\n', ' ').replace('\r', ' ')
     return t
-
-
-def create_local_source_backup(root_dir=None):
-    """Create a portable source/configuration backup (not a canister-state backup)."""
-    root = os.path.abspath(root_dir or os.getcwd())
-    backup_dir = os.path.join(root, "local_backups")
-    os.makedirs(backup_dir, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    archive_path = os.path.join(backup_dir, f"iclinktree-source-{stamp}.zip")
-    excluded_dirs = {
-        ".git", ".dfx", ".mops", "node_modules", "venv", ".venv",
-        "local_backups", "__pycache__", ".pytest_cache", ".ruff_cache"
-    }
-    # Never put local credentials or private key material into a portable ZIP.
-    excluded_files = {
-        ".DS_Store", "backup_canisters.json", ".env", ".env.local",
-        ".env.production", "credentials.json", "secrets.json"
-    }
-    sensitive_suffixes = (".pem", ".key", ".p12", ".pfx", ".keystore")
-    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        for current, dirs, files in os.walk(root):
-            dirs[:] = [d for d in dirs if d not in excluded_dirs]
-            for filename in files:
-                if (filename in excluded_files
-                        or filename.endswith((".pyc", ".pyo") + sensitive_suffixes)
-                        or filename.startswith(".env.")):
-                    continue
-                full_path = os.path.join(current, filename)
-                rel_path = os.path.relpath(full_path, root)
-                if rel_path == os.path.relpath(archive_path, root):
-                    continue
-                archive.write(full_path, os.path.join("IClinktree", rel_path))
-    print(f"\n📦 Local source backup created: {os.path.relpath(archive_path, root)}")
-    print("   This protects your project files/configuration, not live canister state or visitor data.")
-    return archive_path
 
 
 def configure_optional_backup_canisters(root_dir=None):
@@ -538,6 +501,7 @@ ic-vetkeys = "0.6.0"
     main_mo_code = f'''import Text "mo:base/Text";
 import Array "mo:base/Array";
 import Nat "mo:base/Nat";
+import Int "mo:base/Int";
 import Buffer "mo:base/Buffer";
 import Timer "mo:base/Timer";
 import Time "mo:base/Time";
@@ -549,10 +513,15 @@ actor {{
     let OWNER : Principal = Principal.fromText("{owner_principal}");
     let PUBLISHER : Principal = Principal.fromText("{publisher_principal}");
 
-    let SEVEN_DAYS_NS : Time.Time = 604_800_000_000_000;
+    let ANALYTICS_DAYS : Nat = 30;
+    let DAY_NS : Time.Time = 86_400_000_000_000;
+    let ANALYTICS_NS : Time.Time = 30 * DAY_NS;
     let MAX_VISIT_LOGS : Nat = 50_000;
     let MAX_TICKETS : Nat = 200;
     let MAX_CIPHER_LEN : Nat = 2048;
+    let VISIT_INTERVAL_NS : Int = 100_000_000;
+    let VISIT_BURST : Int = 100;
+    let DERIVE_MIN_GAP_NS : Int = 5_000_000_000;
 
     let KEY_NAME : Text = "key_1";
     let DOMAIN_SEPARATOR : Text = "techbod_tickets_v1";
@@ -613,12 +582,16 @@ actor {{
         topBrowsers : [CountedItem];
         topLinks : [CountedItem];
         topSearches : [CountedItem];
+        topMisses : [CountedItem];
+        dailyPageViews : [Nat];
+        analyticsDays : Nat;
     }};
 
     stable var videoLibrary : [VideoRecord] = [];
     stable var visitLogs : [DetailedVisitRecord] = [];
-    stable var searchQueriesBuffer : [Text] = [];
     stable var lastSubmitTime : Time.Time = 0;
+    var visitTat : Time.Time = 0;
+    var lastDeriveTime : Time.Time = 0;
 
     func pruneOldVisits() {{
         let now = Time.now();
@@ -626,7 +599,7 @@ actor {{
         var i = 0;
         while (i < visitLogs.size()) {{
             let log = visitLogs[i];
-            if (now >= log.timestamp and (now - log.timestamp) <= SEVEN_DAYS_NS) {{
+            if (now >= log.timestamp and (now - log.timestamp) <= ANALYTICS_NS) {{
                 validLogs.add(log);
             }};
             i += 1;
@@ -644,10 +617,14 @@ actor {{
     }};
 
     public shared ({{ caller }}) func deriveKey(transportPublicKey : Blob) : async Blob {{
-        if (not Principal.equal(caller, OWNER)) {{
-            throw Error.reject("Unauthorized: Only owner can derive keys");
+        if (not Principal.equal(caller, OWNER) and not Principal.equal(caller, PUBLISHER)) {{
+            throw Error.reject("Unauthorized: Only owner/publisher can derive keys");
         }};
-        let input = Principal.toBlob(caller);
+        if (Blob.toArray(transportPublicKey).size() > 256) {{ throw Error.reject("Invalid transport key"); }};
+        let now = Time.now();
+        if (now - lastDeriveTime < DERIVE_MIN_GAP_NS) {{ throw Error.reject("rate_limited"); }};
+        lastDeriveTime := now;
+        let input = Principal.toBlob(OWNER);
         ExperimentalCycles.add(30_000_000_000);
         let result = await ic.vetkd_derive_key({{
             input = input;
@@ -666,25 +643,18 @@ actor {{
         browser : Text,
         eventAction : ?Text
     ) : async () {{
-        if (Text.size(deviceId) > 64) return;
+        if (consent != "accepted") return;
+        if (Text.size(deviceId) == 0 or Text.size(deviceId) > 40) return;
         if (Text.size(country) > 64) return;
         if (Text.size(device) > 128) return;
         if (Text.size(browser) > 128) return;
-        switch (eventAction) {{
-            case (?act) {{ 
-                if (Text.size(act) > 128) return;
-                if (Text.startsWith(act, #text("search:"))) {{
-                    let stripped = Text.replace(act, #text("search:"), "");
-                    let term = Text.trim(stripped, #text(" "));
-                    if (Text.size(term) > 2 and Text.size(term) < 60) {{
-                        if (searchQueriesBuffer.size() < 500) {{
-                            searchQueriesBuffer := Array.append(searchQueriesBuffer, [term]);
-                        }};
-                    }};
-                }};
-            }};
-            case null {{}};
-        }};
+
+
+        let now = Time.now();
+        let base = if (visitTat > now) visitTat else now;
+        let nextTat = base + VISIT_INTERVAL_NS;
+        if (nextTat - now > VISIT_INTERVAL_NS * VISIT_BURST) return;
+        visitTat := nextTat;
 
         if (visitLogs.size() >= MAX_VISIT_LOGS) {{
             pruneOldVisits();
@@ -756,7 +726,8 @@ actor {{
         Buffer.toArray(result)
     }};
 
-    public shared query func getTrafficStats() : async TrafficStats {{
+    public shared query (msg) func getTrafficStats() : async ?TrafficStats {{
+        if (not Principal.equal(msg.caller, OWNER) and not Principal.equal(msg.caller, PUBLISHER)) return null;
         let now = Time.now();
         var pageViews : Nat = 0;
         var totalEvents : Nat = 0;
@@ -767,11 +738,14 @@ actor {{
         let devicesBuf   = Buffer.Buffer<Text>(20);
         let browsersBuf  = Buffer.Buffer<Text>(20);
         let linksBuf     = Buffer.Buffer<Text>(20);
+        let missesBuf    = Buffer.Buffer<Text>(20);
+        let searchesBuf  = Buffer.Buffer<Text>(20);
+        let daily = Array.init<Nat>(30, 0);
 
         var i = 0;
         while (i < visitLogs.size()) {{
             let log = visitLogs[i];
-            if (now >= log.timestamp and (now - log.timestamp) <= SEVEN_DAYS_NS) {{
+            if (now >= log.timestamp and (now - log.timestamp) <= ANALYTICS_NS) {{
                 totalEvents += 1;
 
                 var exists = false;
@@ -786,6 +760,9 @@ actor {{
                 switch (log.eventAction) {{
                     case null {{
                         pageViews += 1;
+                        let age = now - log.timestamp;
+                        let dayIndex = Int.abs(age / DAY_NS);
+                        if (dayIndex < 30) {{ daily[29 - dayIndex] += 1 }};
                         countriesBuf.add(log.country);
                         devicesBuf.add(log.device);
                         browsersBuf.add(log.browser);
@@ -793,12 +770,19 @@ actor {{
                     case (?act) {{
                         if (act == "pageview") {{
                             pageViews += 1;
+                            let age = now - log.timestamp;
+                            let dayIndex = Int.abs(age / DAY_NS);
+                            if (dayIndex < 30) {{ daily[29 - dayIndex] += 1 }};
                             countriesBuf.add(log.country);
                             devicesBuf.add(log.device);
                             browsersBuf.add(log.browser);
                         }} else if (Text.startsWith(act, #text("click:"))) {{
                             clickCount += 1;
                             linksBuf.add(act);
+                        }} else if (Text.startsWith(act, #text("miss:"))) {{
+                            missesBuf.add(Text.replace(act, #text("miss:"), ""));
+                        }} else if (Text.startsWith(act, #text("search:"))) {{
+                            searchesBuf.add(Text.replace(act, #text("search:"), ""));
                         }};
                     }};
                 }};
@@ -806,7 +790,7 @@ actor {{
             i += 1;
         }};
 
-        {{
+        ?{{
             pageViews = pageViews;
             totalEvents = totalEvents;
             uniqueDevices = uniqueDevices.size();
@@ -815,7 +799,10 @@ actor {{
             topDevices   = tallyValues(Buffer.toArray(devicesBuf), 5);
             topBrowsers  = tallyValues(Buffer.toArray(browsersBuf), 5);
             topLinks     = tallyValues(Buffer.toArray(linksBuf), 5);
-            topSearches  = tallyValues(searchQueriesBuffer, 5);
+            topSearches  = tallyValues(Buffer.toArray(searchesBuf), 5);
+            topMisses    = tallyValues(Buffer.toArray(missesBuf), 5);
+            dailyPageViews = Array.freeze(daily);
+            analyticsDays = ANALYTICS_DAYS;
         }};
     }};
 
@@ -1345,7 +1332,7 @@ async function getBackend(isAuthenticated = false) {
         'askBot': IDL.Func([IDL.Text], [IDL.Vec(ResponseItem)], ['query']),
         'getLatestVideos': IDL.Func([], [IDL.Vec(ResponseItem)], ['query']),
         'logVisit': IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)], [], []),
-        'getTrafficStats': IDL.Func([], [IDL.Record({
+        'getTrafficStats': IDL.Func([], [IDL.Opt(IDL.Record({
           'pageViews' : IDL.Nat,
           'totalEvents' : IDL.Nat,
           'uniqueDevices' : IDL.Nat,
@@ -1354,8 +1341,11 @@ async function getBackend(isAuthenticated = false) {
           'topDevices' : IDL.Vec(CountedItem),
           'topBrowsers' : IDL.Vec(CountedItem),
           'topLinks' : IDL.Vec(CountedItem),
-          'topSearches' : IDL.Vec(CountedItem)
-        })], ['query']),
+          'topSearches' : IDL.Vec(CountedItem),
+          'topMisses' : IDL.Vec(CountedItem),
+          'dailyPageViews' : IDL.Vec(IDL.Nat),
+          'analyticsDays' : IDL.Nat
+        }))], ['query']),
         'submitTicket': IDL.Func([IDL.Text], [IDL.Opt(IDL.Nat)], []),
         'getTickets': IDL.Func([], [IDL.Opt(IDL.Vec(Ticket))], []),
         'getUnreadCount': IDL.Func([], [IDL.Nat], []),
@@ -1775,7 +1765,9 @@ window.sendQuery = async function(presetText) {
     try {
       const backend = await getBackend(false);
       if (!backend) throw new Error("Canister offline");
-      const stats = await backend.getTrafficStats();
+      const statsResult = await backend.getTrafficStats();
+      const stats = Array.isArray(statsResult) ? statsResult[0] : statsResult;
+      if (!stats) throw new Error("Analytics are available to the configured owner/publisher principals only.");
 
       const topCountriesStr = stats.topCountries && stats.topCountries.length > 0
         ? stats.topCountries.map(c => `${formatCountryName(c.name)}: <b>${c.count.toString()}</b>`).join('<br>')
@@ -1796,16 +1788,24 @@ window.sendQuery = async function(presetText) {
       const topSearchesStr = stats.topSearches && stats.topSearches.length > 0
         ? stats.topSearches.map(s => `"${escapeHtml(s.name)}": <b>${s.count.toString()}</b>`).join('<br>')
         : 'No searches logged yet';
+      const topMissesStr = stats.topMisses && stats.topMisses.length > 0
+        ? stats.topMisses.map(s => `"${escapeHtml(s.name)}": <b>${s.count.toString()}</b>`).join('<br>')
+        : 'No failed searches recorded';
 
+      const dailyViews = Array.from(stats.dailyPageViews || []).map(v => Number(v));
+      const dailyTotal = dailyViews.reduce((sum, value) => sum + value, 0);
+      const peakDay = dailyViews.length ? Math.max(...dailyViews) : 0;
       const card = document.createElement('div');
       card.className = 'analytics-card';
 
       card.innerHTML = `
-        <div class="analytics-header"><span>📊 7-Day Live Analytics</span><span class="live-dot"></span></div>
+        <div class="analytics-header"><span>📊 30-Day Live Analytics</span><span class="live-dot"></span></div>
         <div class="analytics-grid">
           <div class="stat-item"><span class="stat-val">${stats.pageViews.toString()}</span><span class="stat-lbl">Pageviews</span></div>
           <div class="stat-item"><span class="stat-val">${stats.uniqueDevices.toString()}</span><span class="stat-lbl">Unique Devices</span></div>
           <div class="stat-item"><span class="stat-val">${stats.buttonClicks.toString()}</span><span class="stat-lbl">Clicks</span></div>
+          <div class="stat-item"><span class="stat-val">${dailyTotal}</span><span class="stat-lbl">30-day daily total</span></div>
+          <div class="stat-item"><span class="stat-val">${peakDay}</span><span class="stat-lbl">Peak day</span></div>
         </div>
         <div class="analytics-breakdown">
           <div class="analytics-row"><span class="analytics-label-title">🌍 Top Country</span><span class="analytics-val-box">${topCountriesStr}</span></div>
@@ -1813,6 +1813,7 @@ window.sendQuery = async function(presetText) {
           <div class="analytics-row"><span class="analytics-label-title">🌐 Top Browser</span><span class="analytics-val-box">${topBrowsersStr}</span></div>
           <div class="analytics-row"><span class="analytics-label-title">🖱️ Top Clicked Links</span><span class="analytics-val-box">${topLinksStr}</span></div>
           <div class="analytics-row"><span class="analytics-label-title">🔍 Top Searches</span><span class="analytics-val-box" style="color:#00bfff;">${topSearchesStr}</span></div>
+          <div class="analytics-row"><span class="analytics-label-title">🧭 Searches With No Results</span><span class="analytics-val-box">${topMissesStr}</span></div>
         </div>
       `;
 
@@ -1846,6 +1847,7 @@ window.sendQuery = async function(presetText) {
         botMsg.appendChild(card);
       });
     } else {
+      trackEvent(`miss:${text}`);
       botMsg.textContent = 'No matching tutorials found in library.';
     }
   } catch (err) {
@@ -1921,7 +1923,6 @@ function escapeHtml(str) {
     print("After the website is deployed, you may optionally record existing backup canister IDs:")
     print("    python3 setup.py --configure-backups")
     print("This optional registration does not deploy backup canisters or synchronize canister data.")
-    create_local_source_backup()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='IClinktree setup and optional backup configuration')
