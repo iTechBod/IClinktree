@@ -324,6 +324,55 @@ ic-vetkeys = "0.6.0"
     with open("canister_ids.json", "w", encoding="utf-8") as f:
         json.dump(canister_ids, f, indent=2)
 
+    # ICP MCP discovery: publishing this manifest makes the app discoverable
+    # to DFINITY's ICP MCP service. The operator should review/accept the
+    # applicable App Operator Terms before deploying this file.
+    print("📁 Generating ICP MCP discovery assets...")
+    well_known_dir = os.path.join("assets", ".well-known")
+    os.makedirs(well_known_dir, exist_ok=True)
+    architecture_manifest = {
+        "version": "1.0.0",
+        "canisters": [
+            {
+                "id": frontend_id,
+                "name": "website",
+                "role": "Frontend",
+                "description": "Public IClinktree creator hub website and browser interface."
+            },
+            {
+                "id": backend_id,
+                "name": "backend",
+                "role": "Backend",
+                "description": "IClinktree API. Read getApiDoc() first. Public video-library queries are available; owner/publisher analytics and management methods require the matching Internet Identity principal."
+            }
+        ]
+    }
+    with open(os.path.join(well_known_dir, "ic-architecture"), "w", encoding="utf-8") as f:
+        json.dump(architecture_manifest, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+    # Legacy DFX asset canisters ignore dot-directories unless explicitly
+    # included. This rule makes /.well-known/ic-architecture deployable and
+    # serves the extensionless manifest as JSON.
+    ic_assets_config = [
+        {"match": ".well-known", "ignore": False},
+        {
+            "match": ".well-known/ic-architecture",
+            "ignore": False,
+            "headers": {
+                "Content-Type": "application/json",
+                "X-Content-Type-Options": "nosniff"
+            }
+        }
+    ]
+    with open(os.path.join("assets", ".ic-assets.json5"), "w", encoding="utf-8") as f:
+        json.dump(ic_assets_config, f, indent=2)
+        f.write("\n")
+
+    print("   Created assets/.well-known/ic-architecture and assets/.ic-assets.json5")
+    print("   ICP MCP discovers this app from its deployed frontend URL; use the same canonical origin used for the owner's Internet Identity login.")
+    print("   Publishing the manifest opts the app into ICP MCP and constitutes acceptance of DFINITY's App Operator Terms.")
+
     print("📁 Generating backend/main.mo (with vetKeys + full ticket system)...")
     ticket_methods_mo = f'''
     public type Ticket = {{
@@ -942,6 +991,23 @@ actor {{
 
     public query func getAllVideos() : async [VideoRecord] {{
         videoLibrary
+    }};
+
+    // Behavioral documentation consumed by ICP MCP-compatible assistants.
+    // Candid remains the source of truth for exact method signatures.
+    public query func getApiDoc() : async Text {{
+        "# IClinktree backend\n\n" #
+        "## Read methods\n" #
+        "- getAllVideos(): public read-only video-library records.\n" #
+        "- getTrafficStats(): owner/publisher-only traffic analytics; returns null to other principals.\n" #
+        "- getMyPrincipal(): returns the caller principal.\n\n" #
+        "## Owner identity and permissions\n" #
+        "The configured owner principal is the Internet Identity principal for this app origin. " #
+        "For owner-only reads, connect ICP MCP with the same Internet Identity account and the exact canonical frontend origin used when the owner principal was registered. " #
+        "Internet Identity derives app-specific principals per origin, so a different frontend origin may produce a different principal.\n\n" #
+        "## Sensitive operations\n" #
+        "Ticket/key-management and library-management methods are access-controlled. Do not expose ticket ciphertext, derived keys, or management methods to untrusted callers. " #
+        "Use read-only/Questions only access in the AI connector unless state-changing actions are explicitly required and reviewed."
     }};
 
     ignore Timer.recurringTimer<system>(#seconds(21600), func() : async () {{
