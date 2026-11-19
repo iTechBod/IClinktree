@@ -4,7 +4,9 @@ import os
 import subprocess
 import sys
 import time
-import yt_dlp
+import argparse
+import zipfile
+from datetime import datetime
 
 def get_principal():
     try:
@@ -20,6 +22,66 @@ def sanitize(text):
     t = t.replace('"', '\\"')
     t = t.replace('\n', ' ').replace('\r', ' ')
     return t
+
+
+def create_local_source_backup(root_dir=None):
+    """Create a portable source/configuration backup (not a canister-state backup)."""
+    root = os.path.abspath(root_dir or os.getcwd())
+    backup_dir = os.path.join(root, "local_backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    archive_path = os.path.join(backup_dir, f"iclinktree-source-{stamp}.zip")
+    excluded_dirs = {".git", ".dfx", ".mops", "node_modules", "venv", ".venv", "local_backups", "__pycache__"}
+    excluded_files = {".DS_Store"}
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for current, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in excluded_dirs]
+            for filename in files:
+                if filename in excluded_files or filename.endswith((".pyc", ".pyo")):
+                    continue
+                full_path = os.path.join(current, filename)
+                rel_path = os.path.relpath(full_path, root)
+                if rel_path == os.path.relpath(archive_path, root):
+                    continue
+                archive.write(full_path, os.path.join("IClinktree", rel_path))
+    print(f"\n📦 Local source backup created: {os.path.relpath(archive_path, root)}")
+    print("   This protects your project files/configuration, not live canister state or visitor data.")
+    return archive_path
+
+
+def configure_optional_backup_canisters(root_dir=None):
+    """Record optional backup canister IDs; does not deploy or synchronize canisters."""
+    root = os.path.abspath(root_dir or os.getcwd())
+    print("\n--- Optional Backup Canister Registration ---")
+    print("This is OPTIONAL. Your website works with only its frontend and backend canisters.")
+    print("These IDs are recorded locally for your own manual backup workflow.")
+    print("This option does NOT create canisters, deploy backup code, copy canister state, or enable automatic restore/sync.")
+    if input("Do you want to record two existing backup canister IDs? (y/n) [default: n]: ").strip().lower() != "y":
+        print("Skipping optional backup canister registration. No extra canisters or costs are required.")
+        return
+
+    first = input("Backup Canister 1 ID: ").strip()
+    second = input("Backup Canister 2 ID: ").strip()
+    if not first or not second:
+        print("Both IDs are required. Nothing was saved.")
+        return
+    if first == second:
+        print("Please provide two different canister IDs. Nothing was saved.")
+        return
+
+    config = {
+        "backup_canister_1": first,
+        "backup_canister_2": second,
+        "purpose": "Optional IDs recorded for manual backup workflows only; no automatic synchronization or restore is implemented."
+    }
+    path = os.path.join(root, "backup_canisters.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        f.write("\n")
+    print(f"\n✅ Saved optional backup canister IDs to {os.path.relpath(path, root)}")
+    print("   Keep this file private if you prefer not to publish your infrastructure IDs.")
+    print("   Remember: canister IDs alone do not contain a backup. Use your local source ZIP as the actual project-file backup.")
+
 
 def main():
     print("🚀 ========================================================")
@@ -56,8 +118,9 @@ def main():
     input("\n👉 Press [Enter] once you have verified your canister controllers...")
 
     print("\n--- 2. Asset & Image Instructions ---")
-    print("🖼️  NOTE: Make sure you place your profile photo in the 'assets/images/'")
-    print("    directory and name it strictly 'techbod.png'.")
+    print("🖼️  NOTE: Place your profile photo in 'assets/images/'.")
+    print("    The existing template image is named 'techbod.png'; replace it with your own image")
+    print("    using the same filename, or update the image reference in your frontend template.")
     print("    Also, ensure all social and crypto icons exist inside your local 'assets/images/' folder!\n")
 
     input("👉 Press [Enter] after verifying your images are in 'assets/images/'...")
@@ -217,8 +280,14 @@ def main():
         crypto_config = default_crypto
 
     print("\n--- 7. Canister IDs ---")
-    backend_id = input("Enter Backend Canister ID (default: v7c4r-xqaaa-aaaam-ad2ga-cai):\n> ").strip() or "v7c4r-xqaaa-aaaam-ad2ga-cai"
-    frontend_id = input("Enter Frontend Canister ID (default: 2n2uw-uaaaa-aaaag-at2hq-cai):\n> ").strip() or "2n2uw-uaaaa-aaaag-at2hq-cai"
+    backend_id = input("Enter YOUR Backend Canister ID:\n> ").strip()
+    while not backend_id:
+        print("A backend canister ID is required; do not use another creator's canister.")
+        backend_id = input("Enter YOUR Backend Canister ID:\n> ").strip()
+    frontend_id = input("Enter YOUR Website/Frontend Canister ID:\n> ").strip()
+    while not frontend_id:
+        print("A website canister ID is required; do not use another creator's canister.")
+        frontend_id = input("Enter YOUR Website/Frontend Canister ID:\n> ").strip()
 
     os.makedirs("backend", exist_ok=True)
     os.makedirs("assets/images", exist_ok=True)
@@ -728,8 +797,7 @@ actor {{
 
     let synonymMap : [(Text, [Text])] = [
         ("apple", ["mac", "macbook", "iphone", "ios", "shortcuts"]),
-        ("اپل", ["mac", "macbook", "iphone", "ios", "apple", "shortcuts"]),
-        ("crypto", ["bitcoin", "ethereum", "blockchain", "کریپتو"]),
+        ("crypto", ["bitcoin", "ethereum", "blockchain"]),
         ("icp", ["internet computer", "dfinity", "motoko", "sns", "nns", "canister"])
     ];
 
@@ -1528,8 +1596,8 @@ window.sendQuery = async function(presetText) {
 
   const lower = text.toLowerCase().trim();
 
-  if (lower.startsWith('ticket ') || lower.startsWith('تیکت ')) {
-    const messageContent = text.replace(/^(ticket|تیکت)\s+/i, '').trim();
+  if (lower.startsWith('ticket ')) {
+    const messageContent = text.replace(/^ticket\s+/i, '').trim();
     if (!messageContent) {
       botMsg.textContent = "Please include a message after 'ticket'. Example: ticket Hello!";
       isSending = false;
@@ -1776,18 +1844,35 @@ function escapeHtml(str) {
 
     if yt_url:
         print(f"\n🔍 Scraping videos from {yt_url} using yt-dlp...")
-        ydl_opts = {'extract_flat': 'in_playlist', 'skip_download': True, 'ignoreerrors': True}
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(yt_url, download=False)
-                entries = info.get('entries', [])
-                print(f"Found {len(entries)} video entries.")
-        except Exception as e:
-            print(f"⚠️ Warning during YouTube scraping: {e}")
+            import yt_dlp
+        except ImportError:
+            print("⚠️ yt-dlp is not installed. Install it with: python3 -m pip install yt-dlp")
+            yt_dlp = None
+        ydl_opts = {'extract_flat': 'in_playlist', 'skip_download': True, 'ignoreerrors': True}
+        if yt_dlp is not None:
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(yt_url, download=False)
+                    entries = info.get('entries', [])
+                    print(f"Found {len(entries)} video entries.")
+            except Exception as e:
+                print(f"⚠️ Warning during YouTube scraping: {e}")
 
     print("\n==================================================")
-    print("🎉 Full setup and code generation completed successfully!")
+    print("🎉 Setup file generation completed successfully!")
     print("==================================================")
+    print("\nNext: review the generated files, then deploy your website using your DFX workflow.")
+    print("After the website is deployed, you may optionally record existing backup canister IDs:")
+    print("    python3 setup.py --configure-backups")
+    print("This optional registration does not deploy backup canisters or synchronize canister data.")
+    create_local_source_backup()
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='IClinktree setup and optional backup configuration')
+    parser.add_argument('--configure-backups', action='store_true', help='Run the optional backup-canister ID prompt after your website has been deployed')
+    args = parser.parse_args()
+    if args.configure_backups:
+        configure_optional_backup_canisters()
+    else:
+        main()
