@@ -31,13 +31,23 @@ def create_local_source_backup(root_dir=None):
     os.makedirs(backup_dir, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     archive_path = os.path.join(backup_dir, f"iclinktree-source-{stamp}.zip")
-    excluded_dirs = {".git", ".dfx", ".mops", "node_modules", "venv", ".venv", "local_backups", "__pycache__"}
-    excluded_files = {".DS_Store"}
+    excluded_dirs = {
+        ".git", ".dfx", ".mops", "node_modules", "venv", ".venv",
+        "local_backups", "__pycache__", ".pytest_cache", ".ruff_cache"
+    }
+    # Never put local credentials or private key material into a portable ZIP.
+    excluded_files = {
+        ".DS_Store", "backup_canisters.json", ".env", ".env.local",
+        ".env.production", "credentials.json", "secrets.json"
+    }
+    sensitive_suffixes = (".pem", ".key", ".p12", ".pfx", ".keystore")
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for current, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in excluded_dirs]
             for filename in files:
-                if filename in excluded_files or filename.endswith((".pyc", ".pyo")):
+                if (filename in excluded_files
+                        or filename.endswith((".pyc", ".pyo") + sensitive_suffixes)
+                        or filename.startswith(".env.")):
                     continue
                 full_path = os.path.join(current, filename)
                 rel_path = os.path.relpath(full_path, root)
@@ -106,9 +116,18 @@ def main():
     
     ticket_retention_days = 7
     if enable_tickets:
-        days_input = input("How many days should the canister hold encrypted tickets before deleting them automatically? (default: 7):\n> ").strip()
-        if days_input.isdigit():
-            ticket_retention_days = int(days_input)
+        while True:
+            days_input = input("How many days should the canister hold encrypted tickets before deleting them automatically? (1-3650, default: 7):\n> ").strip()
+            if not days_input:
+                break
+            try:
+                candidate_days = int(days_input)
+                if 1 <= candidate_days <= 3650:
+                    ticket_retention_days = candidate_days
+                    break
+            except ValueError:
+                pass
+            print("Enter a whole number between 1 and 3650, or press Enter for 7 days.")
 
     retention_ns = ticket_retention_days * 24 * 60 * 60 * 1_000_000_000
 
@@ -510,6 +529,11 @@ ic-vetkeys = "0.6.0"
         tickets := Buffer.toArray(remaining);
         deleted
     }};'''
+
+    # Respect the user's choice: when tickets are disabled, do not expose the
+    # ticket storage or management methods in the generated backend.
+    if not enable_tickets:
+        ticket_methods_mo = ""
 
     main_mo_code = f'''import Text "mo:base/Text";
 import Array "mo:base/Array";
@@ -1843,21 +1867,52 @@ function escapeHtml(str) {
         f.write(script_js_content)
 
     if yt_url:
-        print(f"\n🔍 Scraping videos from {yt_url} using yt-dlp...")
+        print(f"\n🔍 Scraping video metadata from {yt_url} using yt-dlp...")
         try:
             import yt_dlp
         except ImportError:
             print("⚠️ yt-dlp is not installed. Install it with: python3 -m pip install yt-dlp")
             yt_dlp = None
-        ydl_opts = {'extract_flat': 'in_playlist', 'skip_download': True, 'ignoreerrors': True}
+        ydl_opts = {
+            "extract_flat": "in_playlist",
+            "skip_download": True,
+            "ignoreerrors": True,
+            "quiet": True,
+            "no_warnings": True
+        }
         if yt_dlp is not None:
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(yt_url, download=False)
-                    entries = info.get('entries', [])
-                    print(f"Found {len(entries)} video entries.")
+                    info = ydl.extract_info(yt_url, download=False) or {}
+                    entries = info.get("entries") or []
+                    video_records = []
+                    for entry in entries:
+                        if not entry:
+                            continue
+                        video_id = entry.get("id")
+                        video_url = entry.get("webpage_url") or entry.get("url")
+                        if video_id and (not video_url or not str(video_url).startswith("http")):
+                            video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        if not video_url:
+                            continue
+                        title = entry.get("title") or "Untitled video"
+                        description = entry.get("description") or ""
+                        video_records.append({
+                            "title": title,
+                            "url": video_url,
+                            "description": description,
+                            "searchableText": " ".join([title, description]),
+                            "timestamp": time.time_ns()
+                        })
+                    output_path = os.path.join(os.getcwd(), "video_library_import.json")
+                    with open(output_path, "w", encoding="utf-8") as video_file:
+                        json.dump(video_records, video_file, ensure_ascii=False, indent=2)
+                        video_file.write("\n")
+                    print(f"Found {len(video_records)} video entries.")
+                    print(f"📄 Saved normalized video metadata to {os.path.basename(output_path)}")
+                    print("   This prepares records for your canister's seedVideos method; it does not upload them automatically.")
             except Exception as e:
-                print(f"⚠️ Warning during YouTube scraping: {e}")
+                print(f"⚠️ Warning during YouTube metadata extraction: {e}")
 
     print("\n==================================================")
     print("🎉 Setup file generation completed successfully!")
